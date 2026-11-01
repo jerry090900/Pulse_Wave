@@ -1,0 +1,25 @@
+# Gradle state and build outputs
+.gradle/
+**/build/
+
+# Local Android SDK and cache configuration
+local.properties
+.android/
+.android-build-tools/
+.cache/
+android-sdk/
+sdk/
+**/sdk/
+.kotlin/
+.cxx/
+captures/
+
+# Android build products
+*.apk
+*.aab
+*.ap_
+*.idsig
+
+# IDE metadata
+.idea/
+*.iml
