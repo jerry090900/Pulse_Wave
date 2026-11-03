@@ -10,33 +10,77 @@ import android.view.WindowManager;
 import android.widget.FrameLayout;
 
 public class LockScreenActivity extends Activity {
+    private static final Object INSTANCE_LOCK = new Object();
     private static volatile LockScreenActivity instance;
 
     private SharpVisualizerView visualizerView;
 
     static boolean isShowing() {
-        return instance != null;
+        synchronized (INSTANCE_LOCK) {
+            LockScreenActivity activity = instance;
+            return isUsableInstance(activity);
+        }
+    }
+
+    static boolean isUsableInstance(boolean hasInstance, boolean finishing, boolean destroyed) {
+        return hasInstance && !finishing && !destroyed;
+    }
+
+    private static boolean isUsableInstance(LockScreenActivity activity) {
+        return activity != null && isUsableInstance(true, activity.isFinishing(),
+                activity.isDestroyed());
     }
 
     static void pushSpectrum(float[] spectrum, int sampleRate) {
-        LockScreenActivity activity = instance;
-        if (activity != null) activity.visualizerView.submitSpectrum(spectrum, sampleRate);
+        synchronized (INSTANCE_LOCK) {
+            LockScreenActivity activity = instance;
+            if (isUsableInstance(activity) && activity.visualizerView != null) {
+                activity.visualizerView.submitSpectrum(spectrum, sampleRate);
+            }
+        }
     }
 
     static void pushWaveform(byte[] waveform) {
-        LockScreenActivity activity = instance;
-        if (activity != null) activity.visualizerView.setWaveform(waveform);
+        synchronized (INSTANCE_LOCK) {
+            LockScreenActivity activity = instance;
+            if (isUsableInstance(activity) && activity.visualizerView != null) {
+                activity.visualizerView.setWaveform(waveform);
+            }
+        }
+    }
+
+    static void pushCapturedWaveform(byte[] waveform) {
+        synchronized (INSTANCE_LOCK) {
+            LockScreenActivity activity = instance;
+            if (isUsableInstance(activity) && activity.visualizerView != null) {
+                activity.visualizerView.submitWaveform(waveform);
+            }
+        }
+    }
+
+    static void clearSpectrum() {
+        synchronized (INSTANCE_LOCK) {
+            LockScreenActivity activity = instance;
+            if (isUsableInstance(activity) && activity.visualizerView != null) {
+                activity.visualizerView.clearSpectrum();
+            }
+        }
     }
 
     static void applyStyle(int spikeWidth, int gap, int sensitivity, int palette) {
-        LockScreenActivity activity = instance;
-        if (activity != null) {
-            activity.visualizerView.setStyle(spikeWidth, gap, sensitivity, palette);
+        synchronized (INSTANCE_LOCK) {
+            LockScreenActivity activity = instance;
+            if (isUsableInstance(activity) && activity.visualizerView != null) {
+                activity.visualizerView.setStyle(spikeWidth, gap, sensitivity, palette);
+            }
         }
     }
 
     static void close() {
-        LockScreenActivity activity = instance;
+        LockScreenActivity activity;
+        synchronized (INSTANCE_LOCK) {
+            activity = instance;
+        }
         if (activity == null) return;
         activity.runOnUiThread(activity::finish);
     }
@@ -80,18 +124,24 @@ public class LockScreenActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
-        instance = this;
+        synchronized (INSTANCE_LOCK) {
+            instance = this;
+        }
     }
 
     @Override
     protected void onStop() {
-        if (instance == this) instance = null;
+        synchronized (INSTANCE_LOCK) {
+            if (instance == this) instance = null;
+        }
         super.onStop();
     }
 
     @Override
     protected void onDestroy() {
-        if (instance == this) instance = null;
+        synchronized (INSTANCE_LOCK) {
+            if (instance == this) instance = null;
+        }
         super.onDestroy();
     }
 }

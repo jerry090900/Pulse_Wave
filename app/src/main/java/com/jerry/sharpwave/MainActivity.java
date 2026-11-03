@@ -4,7 +4,10 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -12,13 +15,16 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowInsetsController;
 import android.widget.Button;
-import android.widget.CheckBox;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -34,7 +40,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(buildUi());
+        View ui = buildUi();
+        setContentView(ui);
+        configureWindow();
+        ui.requestApplyInsets();
         requestRuntimePermissions();
     }
 
@@ -50,75 +59,138 @@ public class MainActivity extends Activity {
         updateStatus();
     }
 
+    private void configureWindow() {
+        Window window = getWindow();
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false);
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                controller.setSystemBarsAppearance(0,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                                | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            }
+        } else {
+            window.getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        }
+    }
+
     private View buildUi() {
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scroll.setBackgroundColor(color(R.color.bg));
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(18), dp(18), dp(30));
-        root.setBackgroundColor(Color.rgb(16,16,16));
-        scroll.addView(root);
+        root.setPadding(dp(20), dp(24), dp(20), dp(28));
+        root.setBackgroundColor(color(R.color.bg));
+        scroll.addView(root, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        scroll.setOnApplyWindowInsetsListener((view, insets) -> {
+            root.setPadding(dp(20), dp(24) + insets.getSystemWindowInsetTop(),
+                    dp(20), dp(28) + insets.getSystemWindowInsetBottom());
+            return insets;
+        });
 
-        TextView title = text("SharpWave", 30, Color.WHITE);
-        title.setTypeface(null, 1);
-        root.addView(title);
-        TextView desc = text("Full-width sharp audio spikes at the top of your screen.", 15, Color.LTGRAY);
-        desc.setPadding(0, dp(3), 0, dp(10));
-        root.addView(desc);
+        TextView eyebrow = eyebrow("AUDIO VISUALIZER");
+        addBlock(root, eyebrow, 0, 8);
 
-        TextView limitation = text("Detection limitation: SharpWave no longer uses notification access. It uses Android Usage Access to check which selected app was recently in the foreground and shows the overlay only while audio is active. It cannot identify exactly which app is producing sound.", 13, Color.rgb(220,180,100));
-        limitation.setPadding(0, 0, 0, dp(8));
-        root.addView(limitation);
+        TextView title = text("PulseWave", 34, color(R.color.text));
+        title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        addBlock(root, title, 0, 4);
 
-        TextView accessTitle = text("Access", 20, Color.WHITE);
-        accessTitle.setTypeface(null, 1);
-        accessTitle.setPadding(0, dp(8), 0, dp(6));
-        root.addView(accessTitle);
+        TextView desc = text("A focused top-edge visualizer for the music you already play.",
+                16, color(R.color.text_secondary));
+        addBlock(root, desc, 0, 18);
 
-        overlayStatus = text("", 15, Color.LTGRAY);
-        root.addView(overlayStatus);
+        LinearLayout hero = panel();
+        TextView heroLabel = eyebrow("LIVE VISUALIZER");
+        hero.addView(heroLabel, matchParams(0, 0));
+        ImageView waveform = new ImageView(this);
+        waveform.setImageResource(R.drawable.pulsewave_waveform);
+        waveform.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        waveform.setContentDescription("PulseWave waveform");
+        hero.addView(waveform, matchParams(14, 0, 70));
+        TextView heroTitle = text("Sharp motion. Quiet interface.", 18, color(R.color.text));
+        heroTitle.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        hero.addView(heroTitle, matchParams(12, 0));
+        TextView heroNote = text("Full-width spikes stay out of the way until the sound moves.",
+                13, color(R.color.text_secondary));
+        hero.addView(heroNote, matchParams(5, 0));
+        addBlock(root, hero, 0, 24);
 
-        Button overlayPermission = button("Open display-over-other-apps settings");
-        overlayPermission.setOnClickListener(v -> openOverlaySettings());
-        root.addView(overlayPermission);
+        section(root, "ACCESS", "Give PulseWave the access it needs to listen and draw.");
+        LinearLayout access = panel();
+        TextView accessNote = text("These permissions stay on-device and are used only for the overlay and selected-app detection.",
+                13, color(R.color.text_secondary));
+        access.addView(accessNote, matchParams(0, 0));
+        addDivider(access);
 
-        usageAccessStatus = text("", 15, Color.LTGRAY);
-        usageAccessStatus.setPadding(0, dp(10), 0, 0);
-        root.addView(usageAccessStatus);
+        overlayStatus = statusText();
+        addAccessItem(access, "Display over other apps", overlayStatus,
+                "Open display settings", v -> openOverlaySettings());
+        addDivider(access);
+        usageAccessStatus = statusText();
+        addAccessItem(access, "Usage access", usageAccessStatus,
+                "Open usage settings", v -> openUsageAccessSettings());
+        addDivider(access);
+        audioStatus = statusText();
+        addAccessItem(access, "Audio permission", audioStatus,
+                "Grant audio permission", v -> requestRuntimePermissions());
+        addBlock(root, access, 0, 24);
 
-        Button usageAccess = button("Open usage access settings");
-        usageAccess.setOnClickListener(v -> openUsageAccessSettings());
-        root.addView(usageAccess);
-
-        audioStatus = text("", 15, Color.LTGRAY);
-        audioStatus.setPadding(0, dp(10), 0, 0);
-        root.addView(audioStatus);
-
-        Button audioPermission = button("Grant audio permission");
-        audioPermission.setOnClickListener(v -> requestRuntimePermissions());
-        root.addView(audioPermission);
-
-        selectedCount = text("Selected apps: 0", 16, Color.WHITE);
-        selectedCount.setPadding(0, dp(16), 0, dp(6));
-        root.addView(selectedCount);
-
-        Button selectedApps = button("Choose selected apps");
+        section(root, "SELECTED APPS", "Choose which foreground apps can activate the visualizer.");
+        LinearLayout selectedPanel = panel();
+        LinearLayout selectedHeading = horizontalRow();
+        TextView selectedLabel = text("Detection sources", 16, color(R.color.text));
+        selectedHeading.addView(selectedLabel, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        selectedCount = text("0 apps selected", 13, color(R.color.text_secondary));
+        selectedCount.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        selectedHeading.addView(selectedCount, wrapParams());
+        selectedPanel.addView(selectedHeading, matchParams(0, 0));
+        TextView selectedNote = text("PulseWave checks recent foreground activity and active audio. It cannot identify the exact app producing sound.",
+                13, color(R.color.text_secondary));
+        selectedPanel.addView(selectedNote, matchParams(7, 0));
+        Button selectedApps = secondaryButton("Choose selected apps");
         selectedApps.setOnClickListener(v -> startActivity(new Intent(this, AppPickerActivity.class)));
-        root.addView(selectedApps);
+        selectedPanel.addView(selectedApps, matchParams(14, 0, 50));
+        addBlock(root, selectedPanel, 0, 24);
 
-        section(root, "Spike shape");
-        addSlider(root, "Spike width", Prefs.KEY_SPIKE_WIDTH, 2, 12, Prefs.spikeWidth(this));
-        addSlider(root, "Gap", Prefs.KEY_GAP, 0, 8, Prefs.gap(this));
-        addSlider(root, "Maximum height", Prefs.KEY_HEIGHT, 40, 220, Prefs.height(this));
-        addSlider(root, "Sensitivity", Prefs.KEY_SENSITIVITY, 60, 260, Prefs.sensitivity(this));
+        section(root, "VISUAL SIGNATURE", "Tune the spike shape and color without leaving the main screen.");
+        LinearLayout controls = panel();
+        addSlider(controls, "Spike width", Prefs.KEY_SPIKE_WIDTH, 2, 12, Prefs.spikeWidth(this));
+        addDivider(controls);
+        addSlider(controls, "Gap", Prefs.KEY_GAP, 0, 8, Prefs.gap(this));
+        addDivider(controls);
+        addSlider(controls, "Maximum height", Prefs.KEY_HEIGHT, 40, 220, Prefs.height(this));
+        addDivider(controls);
+        addSlider(controls, "Sensitivity", Prefs.KEY_SENSITIVITY, 60, 260, Prefs.sensitivity(this));
+        addDivider(controls);
 
-        section(root, "Colors");
+        TextView paletteLabel = text("Palette", 15, color(R.color.text));
+        paletteLabel.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        controls.addView(paletteLabel, matchParams(12, 0));
         RadioGroup palette = new RadioGroup(this);
         String[] names = Prefs.PALETTE_NAMES;
         int currentPalette = Prefs.palette(this);
         for (int i = 0; i < names.length; i++) {
             RadioButton rb = new RadioButton(this);
-            rb.setText(names[i]); rb.setTextColor(Color.WHITE); rb.setTextSize(15); rb.setId(1000 + i);
-            palette.addView(rb);
+            rb.setText(names[i]);
+            rb.setTextColor(color(R.color.text_secondary));
+            rb.setTextSize(14);
+            rb.setButtonTintList(radioTint());
+            rb.setMinHeight(dp(42));
+            rb.setId(1000 + i);
+            palette.addView(rb, new RadioGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
             if (i == currentPalette) rb.setChecked(true);
         }
         palette.setOnCheckedChangeListener((group, checkedId) -> {
@@ -126,72 +198,108 @@ public class MainActivity extends Activity {
             Prefs.get(this).edit().putInt(Prefs.KEY_PALETTE, value).apply();
             refreshService();
         });
-        root.addView(palette);
+        controls.addView(palette, matchParams(4, 0));
+        addBlock(root, controls, 0, 24);
 
-        section(root, "Experimental lock screen");
-        CheckBox lockScreen = new CheckBox(this);
-        lockScreen.setText("Try drawing on the screen-on lock screen");
-        lockScreen.setTextColor(Color.WHITE);
-        lockScreen.setTextSize(15);
+        section(root, "EXPERIMENTAL LOCK SCREEN", "Screen-on keyguard support varies by Android device.");
+        LinearLayout lockPanel = panel();
+        LinearLayout lockHeading = horizontalRow();
+        LinearLayout lockCopy = new LinearLayout(this);
+        lockCopy.setOrientation(LinearLayout.VERTICAL);
+        TextView lockTitle = text("Show on the screen-on lock screen", 16, color(R.color.text));
+        lockCopy.addView(lockTitle, matchParams(0, 0));
+        TextView lockDescription = text("Best effort; it never wakes or holds the display on.",
+                13, color(R.color.text_secondary));
+        lockCopy.addView(lockDescription, matchParams(4, 0));
+        lockHeading.addView(lockCopy, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Switch lockScreen = new Switch(this);
+        lockScreen.setShowText(false);
+        lockScreen.setThumbTintList(switchThumbTint());
+        lockScreen.setTrackTintList(switchTrackTint());
         lockScreen.setChecked(Prefs.lockScreenEnabled(this));
+        lockHeading.addView(lockScreen, wrapParams());
+        lockPanel.addView(lockHeading, matchParams(0, 0));
         lockScreen.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Prefs.get(this).edit().putBoolean(Prefs.KEY_LOCK_SCREEN, isChecked).apply();
             updateStatus();
             refreshService();
         });
-        root.addView(lockScreen);
+        lockScreenStatus = statusText();
+        lockPanel.addView(lockScreenStatus, matchParams(14, 0));
+        TextView lockNote = text("Android does not allow a normal app to draw on a real always-on display while the panel is off. PulseWave falls back to the normal overlay if the host is blocked.",
+                13, color(R.color.text_secondary));
+        lockPanel.addView(lockNote, matchParams(8, 0));
+        addBlock(root, lockPanel, 0, 24);
 
-        lockScreenStatus = text("", 13, Color.GRAY);
-        lockScreenStatus.setPadding(0, dp(2), 0, dp(4));
-        root.addView(lockScreenStatus);
-
-        TextView lockNote = text("Scope: the lock screen while the display is on. Android does not allow a normal app to draw on the real always-on display while the panel is off, so SharpWave does not fake that by waking or holding the screen on. When enabled, the service tries a transparent show-when-locked host plus a best-effort lock-screen overlay flag on the screen-on keyguard, and falls back to the normal overlay if the OEM or display state blocks it.", 13, Color.rgb(220,180,100));
-        lockNote.setPadding(0, 0, 0, dp(4));
-        root.addView(lockNote);
-
-        section(root, "Service");
-        Button start = button("Start SharpWave");
+        section(root, "SERVICE", "Start the listener when you want PulseWave ready in the background.");
+        LinearLayout servicePanel = panel();
+        Button start = primaryButton("Start PulseWave");
         start.setOnClickListener(v -> {
             requestRuntimePermissions();
             Intent i = new Intent(this, OverlayService.class);
             startForegroundService(i);
             updateStatus();
         });
-        root.addView(start);
-
-        Button testOverlay = button("Test overlay (5 seconds)");
+        servicePanel.addView(start, matchParams(0, 0, 52));
+        Button testOverlay = secondaryButton("Preview overlay · 5 seconds");
         testOverlay.setOnClickListener(v -> testOverlay());
-        root.addView(testOverlay);
-
-        Button stop = button("Stop SharpWave");
+        servicePanel.addView(testOverlay, matchParams(10, 0, 52));
+        Button stop = secondaryButton("Stop PulseWave");
         stop.setOnClickListener(v -> {
             Intent i = new Intent(this, OverlayService.class).setAction(OverlayService.ACTION_STOP);
             startService(i);
         });
-        root.addView(stop);
-
-        TextView note = text("Selected-app detection uses foreground app usage events plus audio/visualizer activity; it does not read notifications. The visualizer itself uses Android's low-quality output-mix Visualizer API; it does not save audio.", 13, Color.GRAY);
-        note.setPadding(0, dp(18), 0, 0);
-        root.addView(note);
+        servicePanel.addView(stop, matchParams(10, 0, 52));
+        TextView note = text("The visualizer uses Android's low-quality output-mix Visualizer API. It does not save audio or read notifications.",
+                13, color(R.color.text_secondary));
+        servicePanel.addView(note, matchParams(14, 0));
+        addBlock(root, servicePanel, 0, 8);
         return scroll;
     }
 
-    private void addSlider(LinearLayout root, String title, String key, int min, int max, int current) {
-        TextView label = text(title + ": " + current, 15, Color.WHITE);
-        root.addView(label);
+    private void addAccessItem(LinearLayout panel, String label, TextView status,
+            String actionLabel, View.OnClickListener listener) {
+        LinearLayout row = horizontalRow();
+        TextView name = text(label, 15, color(R.color.text));
+        row.addView(name, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(status, wrapParams());
+        panel.addView(row, matchParams(0, 0));
+        Button action = secondaryButton(actionLabel);
+        action.setOnClickListener(listener);
+        panel.addView(action, matchParams(8, 0, 48));
+    }
+
+    private void addSlider(LinearLayout panel, String title, String key,
+            int min, int max, int current) {
+        LinearLayout row = horizontalRow();
+        TextView label = text(title, 14, color(R.color.text));
+        row.addView(label, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView valueLabel = text(String.valueOf(current), 14, color(R.color.text_secondary));
+        valueLabel.setGravity(Gravity.RIGHT);
+        row.addView(valueLabel, wrapParams());
+        panel.addView(row, matchParams(0, 0));
+
         SeekBar bar = new SeekBar(this);
         bar.setMax(max - min);
-        bar.setProgress(current - min);
+        bar.setProgress(Math.max(0, Math.min(max - min, current - min)));
+        bar.setProgressTintList(ColorStateList.valueOf(color(R.color.accent)));
+        bar.setThumbTintList(ColorStateList.valueOf(color(R.color.accent_pressed)));
+        bar.setSplitTrack(false);
         bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int value = min + progress;
-                label.setText(title + ": " + value);
+                valueLabel.setText(String.valueOf(value));
                 if (fromUser) Prefs.get(MainActivity.this).edit().putInt(key, value).apply();
             }
+
             public void onStartTrackingTouch(SeekBar seekBar) {}
+
             public void onStopTrackingTouch(SeekBar seekBar) { refreshService(); }
         });
-        root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
+        panel.addView(bar, matchParams(2, 0, 34));
     }
 
     private void refreshService() {
@@ -220,7 +328,7 @@ public class MainActivity extends Activity {
             try {
                 startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
             } catch (Exception e2) {
-                Toast.makeText(this, "Open Settings > Apps > SharpWave > Display over other apps", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Open Settings > Apps > PulseWave > Display over other apps", Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -245,9 +353,9 @@ public class MainActivity extends Activity {
         }
         try {
             startForegroundService(i);
-            Toast.makeText(this, "Test overlay shown for 5 seconds", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "PulseWave preview shown for 5 seconds", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(this, "Could not start the overlay service", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Could not start the PulseWave overlay service", Toast.LENGTH_LONG).show();
         }
     }
 
@@ -256,34 +364,165 @@ public class MainActivity extends Activity {
         boolean usage = UsageAccess.isGranted(this);
         boolean audio = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
 
-        overlayStatus.setText("Display over other apps: " + (overlay ? "ENABLED" : "DISABLED"));
-        overlayStatus.setTextColor(overlay ? Color.rgb(130,220,150) : Color.rgb(220,180,100));
+        overlayStatus.setText(overlay ? "READY" : "NEEDS ACCESS");
+        overlayStatus.setTextColor(overlay ? color(R.color.status_success) : color(R.color.status_warning));
 
-        usageAccessStatus.setText("Usage access: " + (usage ? "ENABLED" : "DISABLED"));
-        usageAccessStatus.setTextColor(usage ? Color.rgb(130,220,150) : Color.rgb(220,180,100));
+        usageAccessStatus.setText(usage ? "READY" : "NEEDS ACCESS");
+        usageAccessStatus.setTextColor(usage ? color(R.color.status_success) : color(R.color.status_warning));
 
-        audioStatus.setText("Audio permission: " + (audio ? "GRANTED" : "NOT GRANTED"));
-        audioStatus.setTextColor(audio ? Color.rgb(130,220,150) : Color.rgb(220,180,100));
+        audioStatus.setText(audio ? "GRANTED" : "NEEDS ACCESS");
+        audioStatus.setTextColor(audio ? color(R.color.status_success) : color(R.color.status_warning));
 
         Set<String> selected = Prefs.selectedApps(this);
-        selectedCount.setText("Selected apps: " + selected.size());
+        selectedCount.setText(selected.size() + (selected.size() == 1 ? " app selected" : " apps selected"));
 
         boolean lockScreen = Prefs.lockScreenEnabled(this);
-        lockScreenStatus.setText("Lock-screen experiment: " + (lockScreen ? "ENABLED" : "DISABLED"));
-        lockScreenStatus.setTextColor(lockScreen ? Color.rgb(130,220,150) : Color.GRAY);
+        lockScreenStatus.setText(lockScreen ? "EXPERIMENT ENABLED" : "EXPERIMENT DISABLED");
+        lockScreenStatus.setTextColor(lockScreen ? color(R.color.status_success) : color(R.color.text_secondary));
     }
 
-    private void section(LinearLayout root, String name) {
-        TextView v = text(name, 20, Color.WHITE); v.setTypeface(null, 1); v.setPadding(0, dp(22), 0, dp(8)); root.addView(v);
+    private void section(LinearLayout root, String name, String description) {
+        TextView heading = eyebrow(name);
+        addBlock(root, heading, 0, 5);
+        TextView body = text(description, 13, color(R.color.text_secondary));
+        addBlock(root, body, 0, 10);
     }
 
-    private Button button(String text) {
-        Button b = new Button(this); b.setText(text); b.setAllCaps(false); b.setGravity(Gravity.CENTER_VERTICAL); b.setMinHeight(dp(52)); return b;
+    private LinearLayout panel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(16), dp(16), dp(16));
+        panel.setBackground(roundDrawable(color(R.color.surface), 18, color(R.color.divider), 1));
+        return panel;
     }
 
-    private TextView text(String text, int sp, int color) {
-        TextView v = new TextView(this); v.setText(text); v.setTextSize(sp); v.setTextColor(color); return v;
+    private LinearLayout horizontalRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        return row;
     }
 
-    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+    private void addDivider(LinearLayout parent) {
+        View divider = new View(this);
+        divider.setBackgroundColor(color(R.color.divider));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+        params.topMargin = dp(12);
+        params.bottomMargin = dp(10);
+        parent.addView(divider, params);
+    }
+
+    private TextView eyebrow(String value) {
+        TextView view = text(value, 11, color(R.color.accent_pressed));
+        view.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        view.setLetterSpacing(0.14f);
+        return view;
+    }
+
+    private TextView statusText() {
+        TextView view = text("CHECKING", 11, color(R.color.text_secondary));
+        view.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        view.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        return view;
+    }
+
+    private Button secondaryButton(String label) {
+        Button button = button(label);
+        button.setBackground(roundDrawable(color(R.color.surface_elevated), 14,
+                color(R.color.divider), 1));
+        return button;
+    }
+
+    private Button primaryButton(String label) {
+        Button button = button(label);
+        button.setTextColor(color(R.color.text));
+        button.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        button.setBackground(roundDrawable(color(R.color.accent), 14,
+                color(R.color.accent_pressed), 1));
+        return button;
+    }
+
+    private Button button(String label) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setTextSize(14);
+        button.setTextColor(color(R.color.text));
+        button.setAllCaps(false);
+        button.setGravity(Gravity.CENTER);
+        button.setMinHeight(dp(48));
+        button.setPadding(dp(14), 0, dp(14), 0);
+        button.setStateListAnimator(null);
+        return button;
+    }
+
+    private TextView text(String value, int sp, int textColor) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(sp);
+        view.setTextColor(textColor);
+        view.setIncludeFontPadding(false);
+        view.setLineSpacing(0f, 1.12f);
+        return view;
+    }
+
+    private LinearLayout.LayoutParams matchParams(int top, int left, int height) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(height));
+        params.topMargin = dp(top);
+        params.leftMargin = dp(left);
+        params.rightMargin = dp(left);
+        return params;
+    }
+
+    private LinearLayout.LayoutParams matchParams(int top, int bottom) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.topMargin = dp(top);
+        params.bottomMargin = dp(bottom);
+        return params;
+    }
+
+    private LinearLayout.LayoutParams wrapParams() {
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
+    private void addBlock(LinearLayout parent, View child, int top, int bottom) {
+        parent.addView(child, matchParams(top, bottom));
+    }
+
+    private GradientDrawable roundDrawable(int fill, int radius, int stroke, int strokeWidth) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(fill);
+        drawable.setCornerRadius(dp(radius));
+        if (strokeWidth > 0) drawable.setStroke(dp(strokeWidth), stroke);
+        return drawable;
+    }
+
+    private ColorStateList radioTint() {
+        return new ColorStateList(
+                new int[][] {new int[] {android.R.attr.state_checked}, new int[] {}},
+                new int[] {color(R.color.accent_pressed), color(R.color.text_secondary)});
+    }
+
+    private ColorStateList switchThumbTint() {
+        return new ColorStateList(
+                new int[][] {new int[] {android.R.attr.state_checked}, new int[] {}},
+                new int[] {color(R.color.accent_pressed), color(R.color.text_secondary)});
+    }
+
+    private ColorStateList switchTrackTint() {
+        return new ColorStateList(
+                new int[][] {new int[] {android.R.attr.state_checked}, new int[] {}},
+                new int[] {color(R.color.accent), color(R.color.divider)});
+    }
+
+    private int color(int resource) {
+        return getResources().getColor(resource);
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
 }

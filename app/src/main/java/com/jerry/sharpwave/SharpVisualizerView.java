@@ -21,6 +21,9 @@ public class SharpVisualizerView extends View {
     private static final float BASS_CROSSOVER_HZ = 700f;
     private static final float NOTHING_BODY_HZ = 1000f;
     private static final float PRESENCE_CROSSOVER_HZ = 4000f;
+    private static final float TWO_TONE_MIN_RED_FRACTION = 0.35f;
+    private static final float TWO_TONE_MAX_RED_FRACTION = 0.70f;
+    private static final float TWO_TONE_MIN_SEGMENT_PX = 1f;
 
     private static final int[][] PALETTES = {
             {0xFFFFFFFF, 0xFF9F000E, 0xFFB8B8B8},
@@ -39,6 +42,7 @@ public class SharpVisualizerView extends View {
     private final Paint paint = new Paint();
     private final Object spectrumLock = new Object();
     private byte[] waveform = new byte[0];
+    private byte[] waveformPending = new byte[0];
     private float[] spectrumPending = new float[0];
     private float[] spectrumActive = new float[0];
     private int pendingBins;
@@ -59,7 +63,7 @@ public class SharpVisualizerView extends View {
     private int gapDp = 1;
     private int sensitivity = 160;
     private int palette = Prefs.PALETTE_DHH_SIGNATURE;
-    private long lastSpectrumAt;
+    private volatile long lastSpectrumAt;
     private long lastFrameAt;
 
     public SharpVisualizerView(Context context) {
@@ -82,11 +86,22 @@ public class SharpVisualizerView extends View {
     }
 
     public void setWaveform(byte[] data) {
+        updateWaveform(data, true);
+    }
+
+    void submitWaveform(byte[] data) {
+        updateWaveform(data, false);
+    }
+
+    private void updateWaveform(byte[] data, boolean preferWaveform) {
         if (data == null || data.length == 0) return;
         synchronized (spectrumLock) {
-            if (waveform.length != data.length) waveform = new byte[data.length];
-            System.arraycopy(data, 0, waveform, 0, data.length);
-            spectrumMode = false;
+            if (waveformPending.length != data.length) waveformPending = new byte[data.length];
+            System.arraycopy(data, 0, waveformPending, 0, data.length);
+            byte[] swap = waveform;
+            waveform = waveformPending;
+            waveformPending = swap;
+            if (preferWaveform) spectrumMode = false;
         }
         postInvalidateOnAnimation();
     }
@@ -98,12 +113,42 @@ public class SharpVisualizerView extends View {
             if (spectrumPending.length < bins) spectrumPending = new float[bins];
             System.arraycopy(spectrum, 0, spectrumPending, 0, bins);
             pendingBins = bins;
-            pendingSampleRate = sampleRate > 0 ? sampleRate : 44100;
+            pendingSampleRate = samplingRateHz(sampleRate);
             spectrumDirty = true;
             spectrumMode = true;
             lastSpectrumAt = android.os.SystemClock.elapsedRealtime();
         }
         postInvalidateOnAnimation();
+    }
+
+    public void clearSpectrum() {
+        synchronized (spectrumLock) {
+            spectrumPending = new float[0];
+            spectrumActive = new float[0];
+            pendingBins = 0;
+            pendingSampleRate = 0;
+            activeBins = 0;
+            activeSampleRate = 0;
+            waveform = new byte[0];
+            waveformPending = new byte[0];
+            spectrumDirty = false;
+            spectrumMode = false;
+            lastSpectrumAt = 0L;
+        }
+        resetResponseState();
+        postInvalidateOnAnimation();
+    }
+
+    private void resetResponseState() {
+        resetResponseLayers(smoothed, rawTargets, blurredTargets);
+        lastFrameAt = 0L;
+    }
+
+    static void resetResponseLayers(float[]... layers) {
+        if (layers == null) return;
+        for (float[] layer : layers) {
+            if (layer != null) java.util.Arrays.fill(layer, 0f);
+        }
     }
 
     private float dp(float value) {
@@ -181,9 +226,41 @@ public class SharpVisualizerView extends View {
             float colorFrequency = fftReady
                     ? bandCenterFrequency(i, bins, sampleRate)
                     : barFrequency(i, count);
-            paint.setColor(colorFor(colorFrequency));
-            canvas.drawRect(x, 0f, right, h, paint);
+            if (isTwoTonePalette()) {
+                drawTwoToneBar(canvas, x, right, h, smoothed[i]);
+            } else {
+                paint.setColor(colorFor(colorFrequency));
+                canvas.drawRect(x, 0f, right, h, paint);
+            }
         }
+    }
+
+    private boolean isTwoTonePalette() {
+        return paletteIndex(palette) == Prefs.PALETTE_DHH_SIGNATURE;
+    }
+
+    private void drawTwoToneBar(Canvas canvas, float left, float right, float height,
+            float inputLevel) {
+        float radius = Math.min((right - left) * 0.5f, height * 0.5f);
+        float redFraction = TWO_TONE_MIN_RED_FRACTION
+                + (TWO_TONE_MAX_RED_FRACTION - TWO_TONE_MIN_RED_FRACTION)
+                * Math.max(0f, Math.min(1f, inputLevel));
+        float minSegment = Math.min(TWO_TONE_MIN_SEGMENT_PX, height * 0.5f);
+        float redHeight = Math.max(minSegment, Math.min(height - minSegment,
+                height * redFraction));
+        float seam = height - redHeight;
+        boolean antiAlias = paint.isAntiAlias();
+        paint.setAntiAlias(true);
+
+        paint.setColor(PALETTES[Prefs.PALETTE_DHH_SIGNATURE][1]);
+        canvas.drawRoundRect(left, 0f, right, height, radius, radius, paint);
+
+        int saveCount = canvas.save();
+        canvas.clipRect(left, 0f, right, seam);
+        paint.setColor(PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0]);
+        canvas.drawRoundRect(left, 0f, right, height, radius, radius, paint);
+        canvas.restoreToCount(saveCount);
+        paint.setAntiAlias(antiAlias);
     }
 
     private void ensureRenderArrays(int count) {
@@ -316,6 +393,32 @@ public class SharpVisualizerView extends View {
             long staleAfterMillis) {
         return spectrumAvailable && lastSpectrumAt > 0L
                 && now - lastSpectrumAt <= staleAfterMillis;
+    }
+
+    static float fftMagnitudeAtBin(byte[] fft, int bin) {
+        // Visualizer reserves byte 0 for DC and byte 1 for Nyquist; bins 1+ are pairs.
+        if (fft == null || fft.length < 2 || bin < 0 || bin >= fft.length / 2) return 0f;
+        if (bin == 0) return Math.abs(fft[0]);
+        int offset = bin * 2;
+        return (float) Math.hypot(fft[offset], fft[offset + 1]);
+    }
+
+    static float fftNyquistMagnitude(byte[] fft) {
+        return fft != null && fft.length >= 2 ? Math.abs(fft[1]) : 0f;
+    }
+
+    static float fftPeakMagnitude(byte[] fft) {
+        if (fft == null || fft.length < 2) return 0f;
+        float peak = fftNyquistMagnitude(fft);
+        for (int bin = 1; bin < fft.length / 2; bin++) {
+            peak = Math.max(peak, fftMagnitudeAtBin(fft, bin));
+        }
+        return peak;
+    }
+
+    static int samplingRateHz(int samplingRate) {
+        if (samplingRate <= 0) return 44100;
+        return samplingRate >= 1_000_000 ? Math.max(1, samplingRate / 1000) : samplingRate;
     }
 
     static int paletteIndex(int value) {

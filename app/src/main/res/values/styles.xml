@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.SharpWave" parent="android:style/Theme.Material.NoActionBar">
+    <style name="Theme.PulseWave" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">#000000</item>
-        <item name="android:navigationBarColor">#000000</item>
-        <item name="android:colorAccent">#9F000E</item>
-        <item name="android:windowBackground">#101010</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarDividerColor">@color/bg</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:windowActionModeOverlay">true</item>
     </style>
 
-    <style name="Theme.SharpWave.LockScreen" parent="android:style/Theme.Material.NoActionBar">
+    <style name="Theme.PulseWave.LockScreen" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowNoTitle">true</item>
@@ -18,6 +21,6 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:colorAccent">#9F000E</item>
+        <item name="android:colorAccent">@color/accent</item>
     </style>
 </resources>

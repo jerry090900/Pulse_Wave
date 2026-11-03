@@ -1,5 +1,6 @@
 package com.jerry.sharpwave;
 
+import android.Manifest;
 import android.app.KeyguardManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -22,6 +23,10 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.WindowManager;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class OverlayService extends Service {
@@ -41,7 +46,11 @@ public class OverlayService extends Service {
     private static final long LOCK_HOST_GRACE_MS = 1500L;
     private static final long LOCK_SCREEN_SELECTED_HOLD_MS = 12L * 60L * 60L * 1000L;
     private static final float FFT_ACTIVITY_THRESHOLD = 2.0f;
+    private static final long VISUALIZER_RETRY_INITIAL_DELAY_MS = 1000L;
+    private static final long VISUALIZER_RETRY_MAX_DELAY_MS = 30_000L;
+    private static final long VISUALIZER_CALLBACK_STALL_TIMEOUT_MS = 3L * POLL_INTERVAL_MS;
     private static volatile boolean running;
+    private static volatile OverlayService activeInstance;
 
     public static boolean isRunning() {
         return running;
@@ -54,7 +63,13 @@ public class OverlayService extends Service {
     private boolean previewOnly;
     private WindowManager windowManager;
     private SharpVisualizerView visualizerView;
-    private Visualizer visualizer;
+    private volatile Visualizer visualizer;
+    private final Object visualizerCallbackLock = new Object();
+    private volatile long visualizerGeneration;
+    private volatile long lastVisualizerCallbackAt;
+    private long visualizerRetryAt;
+    private long visualizerRetryDelayMs = VISUALIZER_RETRY_INITIAL_DELAY_MS;
+    private volatile boolean destroyed;
     private float[] fftSpectrum = new float[0];
     private boolean overlayAdded;
     private boolean mediaActive;
@@ -67,9 +82,12 @@ public class OverlayService extends Service {
     private String latestSelectedPackage;
     private long latestSelectedAt;
     private long lastSelectedForegroundAt;
-    private long lastAudioAt;
+    private volatile long lastAudioAt;
+    private Set<String> previousSelectedApps = Collections.emptySet();
+    private final Map<String, Long> selectedMembershipSince = new HashMap<>();
+    private boolean selectedAppsInitialized;
     private String lastNotificationText;
-    private boolean screenInteractive;
+    private volatile boolean screenInteractive;
     private boolean keyguardLocked;
     private boolean lockHostRequested;
     private boolean lockHostUnavailable;
@@ -77,8 +95,9 @@ public class OverlayService extends Service {
     private final Runnable endPreview = new Runnable() {
         @Override public void run() {
             previewActive = false;
+            if (shouldClearPreviewResponse(mediaActive)) clearVisualizerResponse();
             updateOverlayState();
-            if (previewOnly && !mediaActive) {
+            if (shouldStopPreviewOnly(previewOnly, previewActive, mediaActive)) {
                 previewOnly = false;
                 stopSelf();
             }
@@ -121,6 +140,8 @@ public class OverlayService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        destroyed = false;
+        activeInstance = this;
         running = true;
         createChannel();
         startForeground(NOTIFICATION_ID, buildNotification("Waiting for a selected music app"));
@@ -129,7 +150,7 @@ public class OverlayService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         visualizerView = new SharpVisualizerView(this);
         applyStyle();
-        startVisualizer();
+        reconcileVisualizer(false);
         handler.post(usagePoller);
     }
 
@@ -153,7 +174,7 @@ public class OverlayService extends Service {
                 startPreview();
             }
         }
-        return START_STICKY;
+        return previewOnly ? START_NOT_STICKY : START_STICKY;
     }
 
     private void applyStyle() {
@@ -185,6 +206,27 @@ public class OverlayService extends Service {
         long nowWall = System.currentTimeMillis();
         long nowMono = SystemClock.elapsedRealtime();
         updateDisplayState();
+        Set<String> selected = Prefs.selectedApps(this);
+        if (!selectedAppsInitialized) {
+            previousSelectedApps = new HashSet<>(selected);
+            selectedAppsInitialized = true;
+        } else if (!selected.equals(previousSelectedApps)) {
+            for (String packageName : previousSelectedApps) {
+                if (!selected.contains(packageName)) selectedMembershipSince.remove(packageName);
+            }
+            for (String packageName : selected) {
+                if (!previousSelectedApps.contains(packageName)) {
+                    selectedMembershipSince.put(packageName, nowWall);
+                }
+            }
+            if (latestSelectedPackage != null && !selected.contains(latestSelectedPackage)) {
+                latestSelectedPackage = null;
+                latestSelectedAt = 0L;
+                lastSelectedForegroundAt = 0L;
+            }
+            activeSourcePackage = retainSelectedSource(activeSourcePackage, selected);
+            previousSelectedApps = new HashSet<>(selected);
+        }
 
         if (!UsageAccess.isGranted(this)) {
             latestForegroundPackage = null;
@@ -194,9 +236,9 @@ public class OverlayService extends Service {
             latestSelectedPackage = null;
             latestSelectedAt = 0L;
             lastSelectedForegroundAt = 0L;
+            activeSourcePackage = null;
             usageQueryStart = 0L;
         } else {
-            Set<String> selected = Prefs.selectedApps(this);
             long start = usageQueryStart == 0L
                     ? nowWall - INITIAL_USAGE_LOOKBACK_MS
                     : Math.max(0L, usageQueryStart - USAGE_OVERLAP_MS);
@@ -227,7 +269,9 @@ public class OverlayService extends Service {
                             latestAppAt = timestamp;
                             latestAppPackage = pkg;
                         }
-                        if (selected.contains(pkg) && timestamp >= latestSelectedAt) {
+                        if (isCurrentSelectedEvent(pkg, selected, timestamp,
+                                selectedMembershipSince)
+                                && timestamp >= latestSelectedAt) {
                             latestSelectedAt = timestamp;
                             latestSelectedPackage = pkg;
                         }
@@ -238,28 +282,34 @@ public class OverlayService extends Service {
             usageQueryStart = nowWall;
         }
 
-        boolean selectedForeground = latestSelectedPackage != null
-                && latestSelectedPackage.equals(latestForegroundPackage);
+        boolean selectedForeground = isSelectedForeground(latestForegroundPackage, selected,
+                keyguardLocked);
+        String selectedPackage = selectedForeground
+                ? latestForegroundPackage : latestSelectedPackage;
+        if (selectedForeground) {
+            latestSelectedPackage = selectedPackage;
+            latestSelectedAt = nowWall;
+        }
+        boolean selectedPackageEnabled = selectedPackage != null
+                && selected.contains(selectedPackage);
         if (selectedForeground) lastSelectedForegroundAt = nowWall;
         long selectedAge = latestSelectedAt > 0L ? nowWall - latestSelectedAt : Long.MAX_VALUE;
 
+        boolean selectedWasLastApp = selectedPackageEnabled
+                && latestSelectedPackage != null
+                && latestSelectedPackage.equals(latestAppPackage);
         boolean lockScreenHold = false;
         if (Prefs.lockScreenEnabled(this) && keyguardLocked && screenInteractive) {
-            boolean keyguardSurface = isKeyguardSurface(latestForegroundPackage)
-                    || LockScreenActivity.isShowing();
-            boolean selectedWasLastApp = latestSelectedPackage != null
-                    && latestSelectedPackage.equals(latestAppPackage);
             long selectedForegroundAge = lastSelectedForegroundAt > 0L
                     ? nowWall - lastSelectedForegroundAt
                     : Long.MAX_VALUE;
-            lockScreenHold = keyguardSurface
-                    && selectedWasLastApp
+            lockScreenHold = selectedWasLastApp
                     && selectedForegroundAge >= 0L
                     && selectedForegroundAge <= LOCK_SCREEN_SELECTED_HOLD_MS;
         }
 
         boolean recentSelected = !selectedForeground
-                && latestSelectedPackage != null
+                && selectedPackageEnabled
                 && ((selectedAge >= 0L && selectedAge <= SELECTED_GRACE_PERIOD_MS)
                         || lockScreenHold);
 
@@ -269,18 +319,32 @@ public class OverlayService extends Service {
             activeSourcePackage = latestSelectedPackage;
         }
         if (activeSourcePackage != null
-                && !Prefs.selectedApps(this).contains(activeSourcePackage)) {
+                && !selected.contains(activeSourcePackage)) {
             activeSourcePackage = null;
         }
-        boolean audioActive = audioActivityPresent(nowMono);
+        boolean audioPermission = hasRecordAudioPermission();
+        boolean audioActive = audioPermission && audioActivityPresent(nowMono);
         boolean backgroundSelected = !selectedForeground && activeSourcePackage != null
                 && audioActive && (!keyguardLocked || lockScreenHold);
-        String source = resolveSelectedSource(latestSelectedPackage, selectedForeground,
-                activeSourcePackage, recentSelected, backgroundSelected, audioActive);
-        activeSourcePackage = nextActiveSource(source, latestSelectedPackage,
-                audioActive, selectedForeground);
+        String source = audioPermission
+                ? resolveSelectedSource(selectedPackage, selectedForeground,
+                        activeSourcePackage, recentSelected, backgroundSelected, audioActive)
+                : null;
+        String nextSource = audioPermission
+                ? nextActiveSource(source, selectedPackage, selectedForeground)
+                : null;
+        if (nextSource == null && audioPermission) {
+            nextSource = retainSelectedSourceDuringTransition(activeSourcePackage, selected,
+                    screenInteractive, keyguardLocked, audioActive, selectedWasLastApp);
+        }
+        activeSourcePackage = nextSource;
         mediaActive = source != null && audioActive;
+        reconcileVisualizer(selectedForeground);
         updateOverlayState();
+        if (shouldStopPreviewOnly(previewOnly, previewActive, mediaActive)) {
+            previewOnly = false;
+            stopSelf();
+        }
     }
 
     static String resolveSelectedSource(String selectedPackage, boolean selectedForeground,
@@ -291,17 +355,123 @@ public class OverlayService extends Service {
     }
 
     static String nextActiveSource(String source, String selectedPackage,
-            boolean audioActive, boolean selectedForeground) {
+            boolean selectedForeground) {
         if (source != null) return source;
-        if (!audioActive || selectedForeground) {
-            return selectedForeground ? selectedPackage : null;
+        return selectedForeground ? selectedPackage : null;
+    }
+
+    static boolean isSelectedForeground(String foregroundPackage, Set<String> selected) {
+        return isSelectedForeground(foregroundPackage, selected, false);
+    }
+
+    static boolean isSelectedForeground(String foregroundPackage, Set<String> selected,
+            boolean keyguardLocked) {
+        return !keyguardLocked
+                && foregroundPackage != null
+                && selected != null
+                && selected.contains(foregroundPackage);
+    }
+
+    static String retainSelectedSource(String sourcePackage, Set<String> selected) {
+        return sourcePackage != null && selected != null && selected.contains(sourcePackage)
+                ? sourcePackage : null;
+    }
+
+    static String retainSelectedSourceDuringTransition(String sourcePackage, Set<String> selected,
+            boolean screenInteractive, boolean keyguardLocked, boolean audioActive,
+            boolean selectedWasLastApp) {
+        if (!audioActive || (screenInteractive && !keyguardLocked)) return null;
+        if (screenInteractive && keyguardLocked && !selectedWasLastApp) return null;
+        return retainSelectedSource(sourcePackage, selected);
+    }
+
+    static boolean isCurrentSelectedEvent(String packageName, Set<String> selected,
+            long eventTimestamp, Map<String, Long> selectedSince) {
+        if (packageName == null || selected == null || !selected.contains(packageName)) {
+            return false;
         }
-        return selectedPackage;
+        Long membershipStart = selectedSince == null ? null : selectedSince.get(packageName);
+        return membershipStart == null || eventTimestamp >= membershipStart;
+    }
+
+    static boolean shouldStopPreviewOnly(boolean previewOnly, boolean previewActive,
+            boolean mediaActive) {
+        return previewOnly && !previewActive && !mediaActive;
+    }
+
+    static boolean shouldClearPreviewResponse(boolean mediaActive) {
+        return !mediaActive;
     }
 
     static boolean isAudioActivityPresent(long lastAudioAt, long nowMono,
             long holdMillis, boolean musicActive) {
         return (lastAudioAt > 0L && nowMono - lastAudioAt <= holdMillis) || musicActive;
+    }
+
+    static boolean shouldCaptureVisualizer(boolean screenInteractive, boolean selectedForeground,
+            boolean mediaActive) {
+        return shouldCaptureVisualizer(screenInteractive, selectedForeground, mediaActive,
+                true, true);
+    }
+
+    static boolean shouldCaptureVisualizer(boolean screenInteractive, boolean selectedForeground,
+            boolean mediaActive, boolean audioPermission, boolean overlayPermission) {
+        return audioPermission && overlayPermission
+                && screenInteractive && (selectedForeground || mediaActive);
+    }
+
+    static long nextVisualizerRetryDelay(long currentDelay, long initialDelay, long maxDelay) {
+        long initial = Math.max(1L, initialDelay);
+        long maximum = Math.max(initial, maxDelay);
+        if (currentDelay <= 0L) return initial;
+        long current = Math.min(currentDelay, maximum);
+        if (current >= maximum || current > maximum / 2L) return maximum;
+        return current * 2L;
+    }
+
+    static boolean isVisualizerRetryDue(long now, long retryAt) {
+        return retryAt <= 0L || now >= retryAt;
+    }
+
+    static boolean isVisualizerCallbackStalled(long lastCallbackAt, long now,
+            long timeoutMillis) {
+        return lastCallbackAt > 0L && now >= lastCallbackAt
+                && now - lastCallbackAt > Math.max(0L, timeoutMillis);
+    }
+
+    private void reconcileVisualizer(boolean selectedForeground) {
+        boolean eligible = shouldCaptureVisualizer(screenInteractive, selectedForeground,
+                mediaActive, hasRecordAudioPermission(), Settings.canDrawOverlays(this));
+        if (!eligible) {
+            resetVisualizerRetry();
+            stopVisualizer();
+            return;
+        }
+
+        long now = SystemClock.elapsedRealtime();
+        Visualizer current = visualizer;
+        if (current != null) {
+            boolean enabled;
+            try {
+                enabled = current.getEnabled();
+            } catch (Exception ignored) {
+                enabled = false;
+            }
+            if (enabled && !isVisualizerCallbackStalled(lastVisualizerCallbackAt, now,
+                    VISUALIZER_CALLBACK_STALL_TIMEOUT_MS)) {
+                return;
+            }
+            stopVisualizer();
+            scheduleVisualizerRetry(now);
+            return;
+        }
+
+        if (isVisualizerRetryDue(now, visualizerRetryAt)) startVisualizer();
+    }
+
+    private boolean hasRecordAudioPermission() {
+        return checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private static boolean isKeyguardSurface(String packageName) {
@@ -332,6 +502,8 @@ public class OverlayService extends Service {
                 updateNotification("Screen off - true AOD drawing is unavailable");
             } else if (active) {
                 updateNotification("Screen off - overlay paused");
+            } else if (!hasRecordAudioPermission()) {
+                updateNotification("Grant audio permission to visualize");
             } else if (!UsageAccess.isGranted(this)) {
                 updateNotification("Grant Usage Access to detect selected apps");
             } else {
@@ -368,6 +540,8 @@ public class OverlayService extends Service {
             hideOverlay();
             if (active) {
                 updateNotification("Overlay access is off - allow display over other apps");
+            } else if (!hasRecordAudioPermission()) {
+                updateNotification("Grant audio permission to visualize");
             } else if (!UsageAccess.isGranted(this)) {
                 updateNotification("Grant Usage Access to detect selected apps");
             } else {
@@ -445,7 +619,7 @@ public class OverlayService extends Service {
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = 0;
         params.y = 0;
-        params.setTitle("SharpWave visualizer");
+        params.setTitle("PulseWave visualizer");
         try {
             windowManager.addView(visualizerView, params);
             overlayAdded = true;
@@ -465,62 +639,149 @@ public class OverlayService extends Service {
         overlayAdded = false;
     }
 
+    private void resetVisualizerRetry() {
+        visualizerRetryAt = 0L;
+        visualizerRetryDelayMs = VISUALIZER_RETRY_INITIAL_DELAY_MS;
+    }
+
+    private void scheduleVisualizerRetry(long now) {
+        long delay = Math.max(1L, visualizerRetryDelayMs);
+        visualizerRetryAt = now > Long.MAX_VALUE - delay
+                ? Long.MAX_VALUE : now + delay;
+        visualizerRetryDelayMs = nextVisualizerRetryDelay(delay,
+                VISUALIZER_RETRY_INITIAL_DELAY_MS, VISUALIZER_RETRY_MAX_DELAY_MS);
+    }
+
     private void startVisualizer() {
-        if (visualizer != null) return;
+        if (destroyed) return;
+        if (visualizer != null) {
+            try {
+                if (visualizer.getEnabled()) {
+                    resetVisualizerRetry();
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+            stopVisualizer();
+        }
+        final long generation = ++visualizerGeneration;
+        Visualizer candidate = null;
         try {
-            visualizer = new Visualizer(0);
+            candidate = new Visualizer(0);
+            visualizer = candidate;
             int[] range = Visualizer.getCaptureSizeRange();
             int captureSize = range[1];
-            visualizer.setCaptureSize(captureSize);
-            visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
+            if (candidate.setCaptureSize(captureSize) != Visualizer.SUCCESS) {
+                throw new IllegalStateException("Visualizer capture size setup failed");
+            }
+            if (candidate.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED)
+                    != Visualizer.SUCCESS) {
+                throw new IllegalStateException("Visualizer scaling setup failed");
+            }
             fftSpectrum = new float[captureSize / 2];
             int rate = Math.max(1, Visualizer.getMaxCaptureRate());
-            visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
+            final Visualizer callbackVisualizer = candidate;
+            int listenerStatus = candidate.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
                 @Override
-                public void onWaveFormDataCapture(Visualizer visualizer, byte[] waveform, int samplingRate) {}
+                public void onWaveFormDataCapture(Visualizer visualizer, byte[] waveform,
+                        int samplingRate) {
+                    if (!isCurrentVisualizerCallback(generation, callbackVisualizer)) return;
+                    synchronized (visualizerCallbackLock) {
+                        if (!isCurrentVisualizerCallback(generation, callbackVisualizer)) return;
+                        lastVisualizerCallbackAt = SystemClock.elapsedRealtime();
+                        if (waveform == null || waveform.length == 0) return;
+                        if (visualizerView != null) visualizerView.submitWaveform(waveform);
+                        LockScreenActivity.pushCapturedWaveform(waveform);
+                    }
+                }
 
                 @Override
                 public void onFftDataCapture(Visualizer visualizer, byte[] fft, int samplingRate) {
-                    if (fft == null || fft.length < 4) return;
-                    int bins = fft.length / 2;
-                    float[] spectrum = fftSpectrum;
-                    if (spectrum.length != bins) {
-                        spectrum = new float[bins];
-                        fftSpectrum = spectrum;
+                    if (!isCurrentVisualizerCallback(generation, callbackVisualizer)) return;
+                    synchronized (visualizerCallbackLock) {
+                        if (!isCurrentVisualizerCallback(generation, callbackVisualizer)) return;
+                        lastVisualizerCallbackAt = SystemClock.elapsedRealtime();
+                        if (fft == null || fft.length < 4) return;
+                        int bins = fft.length / 2;
+                        float[] spectrum = fftSpectrum;
+                        if (spectrum.length != bins) {
+                            spectrum = new float[bins];
+                            fftSpectrum = spectrum;
+                        }
+                        float peak = SharpVisualizerView.fftPeakMagnitude(fft);
+                        for (int i = 0; i < bins; i++) {
+                            float magnitude = SharpVisualizerView.fftMagnitudeAtBin(fft, i);
+                            spectrum[i] = magnitude;
+                        }
+                        if (peak >= FFT_ACTIVITY_THRESHOLD) {
+                            lastAudioAt = SystemClock.elapsedRealtime();
+                        }
+                        if (visualizerView != null) {
+                            visualizerView.submitSpectrum(spectrum, samplingRate);
+                        }
+                        LockScreenActivity.pushSpectrum(spectrum, samplingRate);
                     }
-                    float peak = 0f;
-                    for (int i = 0; i < bins; i++) {
-                        int real = fft[i * 2];
-                        int imaginary = fft[i * 2 + 1];
-                        float magnitude = (float) Math.sqrt(real * real + imaginary * imaginary);
-                        spectrum[i] = magnitude;
-                        if (magnitude > peak) peak = magnitude;
-                    }
-                    if (peak >= FFT_ACTIVITY_THRESHOLD) {
-                        lastAudioAt = SystemClock.elapsedRealtime();
-                    }
-                    if (visualizerView != null) visualizerView.submitSpectrum(spectrum, samplingRate);
-                    LockScreenActivity.pushSpectrum(spectrum, samplingRate);
                 }
-            }, rate, false, true);
-            visualizer.setEnabled(true);
+            }, rate, true, true);
+            if (listenerStatus != Visualizer.SUCCESS) {
+                throw new IllegalStateException("Visualizer listener setup failed");
+            }
+            if (candidate.setEnabled(true) != Visualizer.SUCCESS) {
+                throw new IllegalStateException("Visualizer enable failed");
+            }
+            lastVisualizerCallbackAt = SystemClock.elapsedRealtime();
+            resetVisualizerRetry();
         } catch (Exception e) {
             stopVisualizer();
+            scheduleVisualizerRetry(SystemClock.elapsedRealtime());
         }
     }
 
+    static boolean acceptsVisualizerCallback(long callbackGeneration, long activeGeneration,
+            boolean sameVisualizer, boolean serviceDestroyed) {
+        return !serviceDestroyed && callbackGeneration == activeGeneration && sameVisualizer;
+    }
+
+    private boolean isCurrentVisualizerCallback(long generation, Visualizer candidate) {
+        return acceptsVisualizerCallback(generation, visualizerGeneration,
+                visualizer == candidate, destroyed);
+    }
+
     private void stopVisualizer() {
-        if (visualizer != null) {
-            try { visualizer.setEnabled(false); } catch (Exception ignored) {}
-            try { visualizer.release(); } catch (Exception ignored) {}
-            visualizer = null;
+        Visualizer current = visualizer;
+        if (current == null) {
+            lastAudioAt = 0L;
+            lastVisualizerCallbackAt = 0L;
+            if (!previewActive) {
+                clearVisualizerResponse();
+            }
+            return;
         }
+        ++visualizerGeneration;
+        visualizer = null;
+        synchronized (visualizerCallbackLock) {
+            // Wait for a callback that passed the first generation check before
+            // invalidating the native listener.
+        }
+        try { current.setDataCaptureListener(null, 0, false, false); }
+        catch (Exception ignored) {}
+        try { current.setEnabled(false); } catch (Exception ignored) {}
+        try { current.release(); } catch (Exception ignored) {}
+        fftSpectrum = new float[0];
+        lastAudioAt = 0L;
+        lastVisualizerCallbackAt = 0L;
+        clearVisualizerResponse();
+    }
+
+    private void clearVisualizerResponse() {
+        if (visualizerView != null) visualizerView.clearSpectrum();
+        LockScreenActivity.clearSpectrum();
     }
 
     private void createChannel() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID, "SharpWave service", NotificationManager.IMPORTANCE_LOW);
+                CHANNEL_ID, "PulseWave service", NotificationManager.IMPORTANCE_LOW);
         channel.setDescription("Keeps the user-enabled top visualizer ready for selected media apps.");
         nm.createNotificationChannel(channel);
     }
@@ -528,7 +789,7 @@ public class OverlayService extends Service {
     private Notification buildNotification(String text) {
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentTitle("SharpWave")
+                .setContentTitle("PulseWave")
                 .setContentText(text)
                 .setOngoing(true)
                 .build();
@@ -542,14 +803,20 @@ public class OverlayService extends Service {
 
     @Override
     public void onDestroy() {
-        running = false;
+        destroyed = true;
+        boolean wasActiveInstance = activeInstance == this;
+        if (wasActiveInstance) {
+            activeInstance = null;
+            running = false;
+        }
         handler.removeCallbacks(endPreview);
         handler.removeCallbacks(previewTicker);
         handler.removeCallbacks(usagePoller);
         handler.removeCallbacks(lockHostCheck);
-        closeLockScreenHost();
+        if (wasActiveInstance) closeLockScreenHost();
         stopVisualizer();
         hideOverlay();
+        if (wasActiveInstance) stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
     }
 
