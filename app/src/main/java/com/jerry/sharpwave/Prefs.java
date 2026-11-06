@@ -62,7 +62,7 @@ final class Prefs {
         return p >= POSITION_TOP && p <= POSITION_BOTTOM ? p : POSITION_CENTER;
     }
     static boolean centeredBass(Context c) { return get(c).getBoolean(KEY_CENTER_BASS, true); }
-    static boolean singleColorBars(Context c) { return get(c).getBoolean(KEY_SINGLE_COLOR, true); }
+    static boolean singleColorBars(Context c) { return get(c).getBoolean(KEY_SINGLE_COLOR, false); }
     static int bassGain(Context c) {
         return Math.max(100, Math.min(240, get(c).getInt(KEY_BASS_GAIN, 160)));
     }
