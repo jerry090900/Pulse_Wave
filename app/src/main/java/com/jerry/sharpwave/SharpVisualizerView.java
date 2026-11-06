@@ -68,6 +68,11 @@ public class SharpVisualizerView extends View {
     private boolean studioColorsActive;
     private int studioPrimary = 0xFFFFFFFF;
     private int studioAccent = 0xFF9F000E;
+    private boolean centerBass = true;
+    private boolean solidBars = true;
+    private int bassGain = 160;
+    private volatile float waveformEnergy = 1f;
+    private volatile long lastEnergyAt;
     private final Path studioPath = new Path();
     private volatile long lastSpectrumAt;
     private long lastFrameAt;
@@ -105,6 +110,32 @@ public class SharpVisualizerView extends View {
         invalidate();
     }
 
+    /** Presentation controls are independent of capture and app selection. */
+    public void setPresentation(boolean bassInCenter, boolean oneColor, int bassGainPercent) {
+        centerBass = bassInCenter;
+        solidBars = oneColor;
+        bassGain = StudioPreset.clamp(bassGainPercent, 100, 240);
+        invalidate();
+    }
+
+    static int mirroredBandIndex(int i, int count) {
+        if (count <= 1) return 0;
+        int center = (count - 1) / 2;
+        int distance = Math.min(Math.abs(i - center), Math.abs(i - (count / 2)));
+        float maxDistance = Math.max(0.5f, (count - 1) * .5f);
+        return Math.min(count - 1, Math.round(distance / maxDistance * (count - 1)));
+    }
+
+    static float waveformRms(byte[] data) {
+        if (data == null || data.length == 0) return 0f;
+        double energy = 0.0;
+        for (int i = 0; i < data.length; i++) {
+            int sample = (data[i] & 0xFF) - 128;
+            energy += (double) sample * sample;
+        }
+        return (float) (Math.sqrt(energy / data.length) / 128.0);
+    }
+
     public void setWaveform(byte[] data) {
         updateWaveform(data, true);
     }
@@ -115,6 +146,8 @@ public class SharpVisualizerView extends View {
 
     private void updateWaveform(byte[] data, boolean preferWaveform) {
         if (data == null || data.length == 0) return;
+        waveformEnergy = waveformRms(data);
+        lastEnergyAt = android.os.SystemClock.elapsedRealtime();
         synchronized (spectrumLock) {
             if (waveformPending.length != data.length) waveformPending = new byte[data.length];
             System.arraycopy(data, 0, waveformPending, 0, data.length);
@@ -155,6 +188,8 @@ public class SharpVisualizerView extends View {
             spectrumMode = false;
             lastSpectrumAt = 0L;
         }
+        waveformEnergy = 0f;
+        lastEnergyAt = 0L;
         resetResponseState();
         postInvalidateOnAnimation();
     }
@@ -220,10 +255,23 @@ public class SharpVisualizerView extends View {
         boolean fftReady = isSpectrumFresh(useSpectrum && bins > 1,
                 now, lastSpectrumAt, SPECTRUM_STALE_MS);
         if (fftReady) ensureBandMap(count, bins, sampleRate);
+        boolean recentWaveform = lastEnergyAt > 0L && now >= lastEnergyAt
+                && now - lastEnergyAt < 500L;
+        float actualLoudness = recentWaveform
+                ? Math.min(1f, waveformEnergy * 3.2f)
+                : 1f;
         for (int i = 0; i < count; i++) {
-            rawTargets[i] = fftReady
-                    ? fftTargetForBar(i, spectrum, bins)
-                    : waveformTargetForBar(i, count, wave);
+            int band = centerBass ? mirroredBandIndex(i, count) : i;
+            float frequency = fftReady ? bandCenterFrequency(band, bins, sampleRate)
+                    : barFrequency(band, count);
+            float bassMultiplier = frequency <= 180f ? bassGain / 100f
+                    : frequency < 450f ? 1f + (bassGain / 100f - 1f)
+                        * (450f - frequency) / 270f
+                    : 1f;
+            float signal = fftReady ? fftTargetForBar(band, spectrum, bins)
+                    : waveformTargetForBar(band, count, wave);
+            rawTargets[i] = Math.min(1f, signal * bassMultiplier
+                    * (fftReady ? actualLoudness : 1f));
         }
 
         for (int i = 0; i < count; i++) {
@@ -240,12 +288,14 @@ public class SharpVisualizerView extends View {
             smoothed[i] = smoothLevel(smoothed[i], target, elapsed, tau * 1000f);
 
             float x = i * step;
-            float h = Math.max(dp(2), smoothed[i] * height);
+            float h = Math.min(height, Math.max(0f, smoothed[i] * height));
+            float top = height - h;
+            float bottom = height;
             float right = i == count - 1 ? width : x + barWidth;
             if (right <= x) continue;
 
             if (studioColorsActive && studioMode == StudioPreset.WAVE) {
-                float y = Math.max(1f, height * (.75f - smoothed[i] * .67f));
+                float y = Math.max(1f, height * (0.82f - smoothed[i] * .72f));
                 float center = (x + right) * .5f;
                 if (i == 0) studioPath.moveTo(center, y);
                 else studioPath.lineTo(center, y);
@@ -253,18 +303,23 @@ public class SharpVisualizerView extends View {
             }
 
             if (studioColorsActive && studioMode == StudioPreset.SPIKES) {
-                drawStudioSpike(canvas, x, right, h, smoothed[i]);
+                drawStudioSpike(canvas, x, right, top, bottom, smoothed[i]);
                 continue;
             }
 
-            float colorFrequency = fftReady
-                    ? bandCenterFrequency(i, bins, sampleRate)
-                    : barFrequency(i, count);
-            if (isTwoTonePalette()) {
-                drawTwoToneBar(canvas, x, right, h, smoothed[i]);
+            if (solidBars) {
+                paint.setColor(studioColorsActive
+                        ? studioPrimary : PALETTES[paletteIndex(palette)][0]);
+                canvas.drawRect(x, top, right, bottom, paint);
+            } else if (isTwoTonePalette()) {
+                drawTwoToneBar(canvas, x, right, top, bottom, smoothed[i]);
             } else {
+                int band = centerBass ? mirroredBandIndex(i, count) : i;
+                float colorFrequency = fftReady
+                        ? bandCenterFrequency(band, bins, sampleRate)
+                        : barFrequency(band, count);
                 paint.setColor(colorFor(colorFrequency));
-                canvas.drawRect(x, 0f, right, h, paint);
+                canvas.drawRect(x, top, right, bottom, paint);
             }
         }
         if (studioColorsActive && studioMode == StudioPreset.WAVE) {
@@ -287,25 +342,30 @@ public class SharpVisualizerView extends View {
         return studioColorsActive || paletteIndex(palette) == Prefs.PALETTE_DHH_SIGNATURE;
     }
 
-    private void drawStudioSpike(Canvas canvas, float left, float right, float height,
-            float inputLevel) {
+    private void drawStudioSpike(Canvas canvas, float left, float right,
+            float top, float bottom, float inputLevel) {
+        if (bottom - top <= 0f) return;
         studioPath.reset();
-        studioPath.moveTo(left, 0);
-        studioPath.lineTo(right, 0);
-        studioPath.lineTo((left + right) * .5f, height);
+        studioPath.moveTo(left, bottom);
+        studioPath.lineTo((left + right) * .5f, top);
+        studioPath.lineTo(right, bottom);
         studioPath.close();
-        paint.setColor(studioAccent);
+        paint.setColor(solidBars ? studioPrimary : studioAccent);
         canvas.drawPath(studioPath, paint);
-        float seam = height * (.40f + .20f * (1f - inputLevel));
-        canvas.save();
-        canvas.clipRect(left, 0f, right, seam);
-        paint.setColor(studioPrimary);
-        canvas.drawPath(studioPath, paint);
-        canvas.restore();
+        if (!solidBars) {
+            float seam = top + (bottom - top) * (.40f + .20f * (1f - inputLevel));
+            canvas.save();
+            canvas.clipRect(left, top, right, seam);
+            paint.setColor(studioPrimary);
+            canvas.drawPath(studioPath, paint);
+            canvas.restore();
+        }
     }
 
-    private void drawTwoToneBar(Canvas canvas, float left, float right, float height,
-            float inputLevel) {
+    private void drawTwoToneBar(Canvas canvas, float left, float right,
+            float top, float bottom, float inputLevel) {
+        float height = bottom - top;
+        if (height <= 0f) return;
         float radius = Math.min((right - left) * 0.5f, height * 0.5f);
         float redFraction = TWO_TONE_MIN_RED_FRACTION
                 + (TWO_TONE_MAX_RED_FRACTION - TWO_TONE_MIN_RED_FRACTION)
@@ -319,13 +379,13 @@ public class SharpVisualizerView extends View {
 
         paint.setColor(studioColorsActive
                 ? studioAccent : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][1]);
-        canvas.drawRoundRect(left, 0f, right, height, radius, radius, paint);
+        canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
 
         int saveCount = canvas.save();
-        canvas.clipRect(left, 0f, right, seam);
+        canvas.clipRect(left, top, right, top + seam);
         paint.setColor(studioColorsActive
                 ? studioPrimary : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0]);
-        canvas.drawRoundRect(left, 0f, right, height, radius, radius, paint);
+        canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
         canvas.restoreToCount(saveCount);
         paint.setAntiAlias(antiAlias);
     }
@@ -379,15 +439,16 @@ public class SharpVisualizerView extends View {
             sumSq += magnitude * magnitude;
             samples++;
         }
-        if (samples == 0) return MIN_LEVEL;
+        if (samples == 0) return 0f;
         float rms = (float) Math.sqrt(sumSq / samples);
         float db = 20f * (float) Math.log10(Math.max(rms, 0.0001f) / FFT_SCALE);
         float normalized = (db - FFT_FLOOR_DB) / (FFT_CEIL_DB - FFT_FLOOR_DB);
         if (normalized < 0f) normalized = 0f;
         if (normalized > 1f) normalized = 1f;
-        float scaled = normalized * (sensitivity / 100f);
-        if (scaled > 1f) scaled = 1f;
-        return MIN_LEVEL + (1f - MIN_LEVEL) * scaled;
+        // Preserve quieter transients instead of flattening every band at high sensitivity.
+        float scaled = (float) Math.pow(normalized, 1.65f)
+                * (sensitivity / 160f);
+        return Math.min(1f, Math.max(0f, scaled));
     }
 
     private float bandCenterFrequency(int bar, int bins, int sampleRate) {
@@ -405,7 +466,7 @@ public class SharpVisualizerView extends View {
     }
 
     private float waveformTargetForBar(int bar, int count, byte[] wave) {
-        if (wave.length == 0) return MIN_LEVEL;
+        if (wave.length == 0) return 0f;
         int start = bar * wave.length / count;
         int end = Math.max(start + 1, (bar + 1) * wave.length / count);
         end = Math.min(wave.length, end);
@@ -416,7 +477,7 @@ public class SharpVisualizerView extends View {
         }
         float avg = sum / Math.max(1, end - start);
         float scaled = avg * (sensitivity / 100f) * 2.15f;
-        return Math.max(MIN_LEVEL, Math.min(1f, scaled));
+        return Math.max(0f, Math.min(1f, scaled));
     }
 
     private int colorFor(float frequency) {
