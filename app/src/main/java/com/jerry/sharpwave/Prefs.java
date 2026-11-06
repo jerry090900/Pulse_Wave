@@ -16,11 +16,9 @@ final class Prefs {
     static final String KEY_SENSITIVITY = "sensitivity";
     static final String KEY_PALETTE = "palette";
     static final int PALETTE_DHH_SIGNATURE = 0;
-    static final int PALETTE_COUNT = 10;
-    static final String[] PALETTE_NAMES = {
-            "DHH Signature", "Talha Night", "Seedhe Smoke", "Red Room", "808 Ice",
-            "Heartbreak Kid", "Jeweler Cut", "Nothing Minimal", "AMOLED Dusk", "Monsoon Mood"
-    };
+    // One built-in color theme. User-created Studio presets remain untouched.
+    static final int PALETTE_COUNT = 1;
+    static final String[] PALETTE_NAMES = {"DHH Signature"};
     static final String KEY_LOCK_SCREEN = "lock_screen_experimental";
     // New defaults affect presentation only. Legacy prefs remain unchanged for existing installs.
     static final String KEY_OVERLAY_POSITION = "overlay_position";
@@ -31,6 +29,8 @@ final class Prefs {
     static final String KEY_SINGLE_COLOR = "single_color_bars";
     static final String KEY_BASS_GAIN = "bass_gain";
     static final String KEY_AS_PLAYED = "capture_as_played";
+    // Optional, user-enabled media-session detection: no notification contents collected.
+    static final String KEY_MEDIA_SESSION_DETECTION = "media_session_detection";
 
     private Prefs() {}
 
@@ -67,4 +67,7 @@ final class Prefs {
         return Math.max(100, Math.min(240, get(c).getInt(KEY_BASS_GAIN, 160)));
     }
     static boolean asPlayed(Context c) { return get(c).getBoolean(KEY_AS_PLAYED, true); }
+    static boolean mediaSessionDetectionEnabled(Context c) {
+        return get(c).getBoolean(KEY_MEDIA_SESSION_DETECTION, false);
+    }
 }
