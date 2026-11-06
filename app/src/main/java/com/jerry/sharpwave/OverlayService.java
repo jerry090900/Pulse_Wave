@@ -184,6 +184,7 @@ public class OverlayService extends Service {
         int palette = Prefs.palette(this);
         if (visualizerView != null) {
             visualizerView.setStyle(spikeWidth, gap, sensitivity, palette);
+            visualizerView.setStudioScene(StudioStore.activeAudio(this));
         }
         LockScreenActivity.applyStyle(spikeWidth, gap, sensitivity, palette);
     }
