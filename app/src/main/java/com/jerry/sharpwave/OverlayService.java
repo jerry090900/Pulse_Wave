@@ -310,12 +310,13 @@ public class OverlayService extends Service {
             long selectedForegroundAge = lastSelectedForegroundAt > 0L
                     ? nowWall - lastSelectedForegroundAt
                     : Long.MAX_VALUE;
-            // Continue a recently selected music source when the user visited launcher/Studio.
-            lockScreenHold = selectedPackageEnabled
-                    && activeSourcePackage != null
-                    && activeSourcePackage.equals(selectedPackage)
-                    && selectedForegroundAge >= 0L
-                    && selectedForegroundAge <= LOCK_SCREEN_SELECTED_HOLD_MS;
+            // Continue recent selected playback even if home/Studio was the last app.
+            lockScreenHold = shouldKeepSelectedOnLock(
+                    Prefs.lockScreenEnabled(this), keyguardLocked, screenInteractive,
+                    selectedPackageEnabled,
+                    activeSourcePackage != null
+                            && activeSourcePackage.equals(selectedPackage),
+                    selectedForegroundAge, LOCK_SCREEN_SELECTED_HOLD_MS);
         }
 
         boolean recentSelected = !selectedForeground
@@ -380,6 +381,13 @@ public class OverlayService extends Service {
                 && foregroundPackage != null
                 && selected != null
                 && selected.contains(foregroundPackage);
+    }
+
+    static boolean shouldKeepSelectedOnLock(boolean enabled, boolean locked,
+            boolean interactive, boolean selectedEnabled, boolean sameSelectedSource,
+            long lastSelectedAgeMs, long maxHoldMs) {
+        return enabled && locked && interactive && selectedEnabled && sameSelectedSource
+                && lastSelectedAgeMs >= 0L && lastSelectedAgeMs <= maxHoldMs;
     }
 
     static String retainSelectedSource(String sourcePackage, Set<String> selected) {
