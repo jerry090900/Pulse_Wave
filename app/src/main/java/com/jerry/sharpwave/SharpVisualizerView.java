@@ -20,25 +20,13 @@ public class SharpVisualizerView extends View {
     private static final float FFT_CEIL_DB = -6f;
     private static final float FFT_SCALE = 128f;
     private static final float BASS_CROSSOVER_HZ = 700f;
-    private static final float NOTHING_BODY_HZ = 1000f;
-    private static final float PRESENCE_CROSSOVER_HZ = 4000f;
     private static final float TWO_TONE_MIN_RED_FRACTION = 0.35f;
     private static final float TWO_TONE_MAX_RED_FRACTION = 0.70f;
     private static final float TWO_TONE_MIN_SEGMENT_PX = 1f;
 
     private static final int[][] PALETTES = {
-            {0xFFFFFFFF, 0xFF9F000E, 0xFFB8B8B8},
-            {0xFFF4F4F4, 0xFF6E0B14, 0xFF8E8E8E},
-            {0xFFEDEDED, 0xFF8B000C, 0xFF666666},
-            {0xFFF8F8F8, 0xFFB00012, 0xFF4A4A4A},
-            {0xFFFFFFFF, 0xFFBFC5CC, 0xFF7F8B99},
-            {0xFFE8E8E8, 0xFF7D0B16, 0xFF7B7B7B},
-            {0xFFF7F7F7, 0xFFA3001B, 0xFFB5B8BD},
-            {0xFFFFFFFF, 0xFF9F000E, 0xFF9A9A9A},
-            {0xFFCFCFCF, 0xFF640912, 0xFF555555},
-            {0xFFE5E7EA, 0xFF721521, 0xFF727A84}
+            {0xFFFFFFFF, 0xFF9F000E, 0xFFB8B8B8}
     };
-    private static final int NOTHING_MINIMAL_BODY = 0xFFD7D7D7;
 
     private final Paint paint = new Paint();
     private final Object spectrumLock = new Object();
@@ -487,22 +475,6 @@ public class SharpVisualizerView extends View {
 
     private int colorFor(float frequency) {
         int preset = paletteIndex(palette);
-        if (preset == 7) {
-            int[] anchors = PALETTES[preset];
-            if (frequency <= BASS_CROSSOVER_HZ) {
-                float position = logPosition(frequency, FFT_MIN_HZ, BASS_CROSSOVER_HZ);
-                return blend(anchors[0], anchors[1], smoothstep(position));
-            }
-            if (frequency <= 2200f) {
-                float position = logPosition(frequency, BASS_CROSSOVER_HZ, 2200f);
-                return blend(anchors[1], NOTHING_MINIMAL_BODY, smoothstep(position));
-            }
-            if (frequency <= PRESENCE_CROSSOVER_HZ) {
-                float position = logPosition(frequency, 2200f, PRESENCE_CROSSOVER_HZ);
-                return blend(NOTHING_MINIMAL_BODY, anchors[2], smoothstep(position));
-            }
-            return anchors[2];
-        }
         if (frequency <= BASS_CROSSOVER_HZ) {
             float position = logPosition(frequency, FFT_MIN_HZ, BASS_CROSSOVER_HZ);
             return blend(PALETTES[preset][0], PALETTES[preset][1], smoothstep(position));
@@ -560,10 +532,6 @@ public class SharpVisualizerView extends View {
 
     static int paletteAnchor(int paletteIndex, int anchorIndex) {
         return PALETTES[paletteIndex(paletteIndex)][anchorIndex];
-    }
-
-    static int nothingMinimalBody() {
-        return NOTHING_MINIMAL_BODY;
     }
 
     private float logPosition(float frequency, float minHz, float maxHz) {

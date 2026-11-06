@@ -310,8 +310,16 @@ public class OverlayService extends Service {
 
         boolean selectedForeground = isSelectedForeground(latestForegroundPackage, selected,
                 keyguardLocked);
-        String selectedPackage = selectedForeground
+        // Optional, user-granted: session package and PLAYING state only.
+        // No notification text, artwork, title or third-party app data is read.
+        String sessionSource = MusicSessionListener.selectedPlayingApp(this, selected);
+        String selectedPackage = sessionSource != null ? sessionSource : selectedForeground
                 ? latestForegroundPackage : latestSelectedPackage;
+        if (sessionSource != null) {
+            latestSelectedPackage = sessionSource;
+            latestSelectedAt = nowWall;
+            activeSourcePackage = sessionSource;
+        }
         if (selectedForeground) {
             latestSelectedPackage = selectedPackage;
             latestSelectedAt = nowWall;
@@ -357,8 +365,9 @@ public class OverlayService extends Service {
         boolean backgroundSelected = !selectedForeground && activeSourcePackage != null
                 && audioActive && (!keyguardLocked || lockScreenHold);
         String source = audioPermission
-                ? resolveSelectedSource(selectedPackage, selectedForeground,
-                        activeSourcePackage, recentSelected, backgroundSelected, audioActive)
+                ? sessionSource != null ? sessionSource
+                    : resolveSelectedSource(selectedPackage, selectedForeground,
+                            activeSourcePackage, recentSelected, backgroundSelected, audioActive)
                 : null;
         String nextSource = audioPermission
                 ? nextActiveSource(source, selectedPackage, selectedForeground)
@@ -369,7 +378,7 @@ public class OverlayService extends Service {
         }
         activeSourcePackage = nextSource;
         mediaActive = source != null && audioActive;
-        reconcileVisualizer(selectedForeground);
+        reconcileVisualizer(selectedForeground || sessionSource != null);
         updateOverlayState();
         if (shouldStopPreviewOnly(previewOnly, previewActive, mediaActive)) {
             previewOnly = false;

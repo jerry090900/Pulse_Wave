@@ -34,6 +34,18 @@ The experimental screen-on lock-screen host retains a previously selected music 
 
 The candidate is a **draft test build**. Verify audio/visual sync, position, selected app continuity, screen-on lock test, and update signing on the target Nothing Phone before merging. Existing installation signing may not match GitHub Actions debug signing.
 
+## One built-in theme and optional music-session notification access
+
+PulseWave now ships **one** legacy built-in theme: **DHH Signature** (white, deep red, gray). The nine other legacy named themes are removed from the built-in palette menu and renderer. Stored legacy palette indices safely fall back to DHH Signature. User-created PulseWave Studio preset designs are kept.
+
+On the home page, **Access → Music notification access (optional)** opens Android's notification access settings. PulseWave also provides a separate **Use playing media sessions from selected apps** switch, initially **off**. Both explicit opt-in and OS-level permission are required.
+
+When enabled, PulseWave uses `MediaSessionManager.getActiveSessions()` through its authorized `NotificationListenerService` solely to identify the *package name* of **selected** apps with a media session in PLAYING state. This allows music-source tracking when switching apps or locking the screen; it **does not provide waveform/FFT data**, so the Android output-mix Visualizer remains responsible for animating the bars.
+
+The Android notification-access permission is broad and technically allows access to all notifications. This implementation does **not** process or store notification titles, text, messages, contacts, album artwork, or session metadata. No remote upload is implemented. Users can disable the switch or revoke notification access in Android settings. The app continues to support its previous non-notification fallback. Android or OEM policy may restrict the feature on sideloaded apps.
+
+**Important:** Successful unit tests/CI compilation are not the same as proving real music synchronization, notification-access behavior, Bluetooth audio capture, or lock-screen visibility on the Nothing Phone. Keep this branch separate from main until device QA.
+
 ## Permissions
 
 PulseWave asks for three user-facing permissions:

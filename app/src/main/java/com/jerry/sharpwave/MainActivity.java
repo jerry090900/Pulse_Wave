@@ -34,6 +34,7 @@ public class MainActivity extends Activity {
     private TextView overlayStatus;
     private TextView usageAccessStatus;
     private TextView audioStatus;
+    private TextView mediaSessionStatus;
     private TextView selectedCount;
     private TextView lockScreenStatus;
     private boolean returningFromStudio;
@@ -170,6 +171,35 @@ public class MainActivity extends Activity {
         audioStatus = statusText();
         addAccessItem(access, "Audio permission", audioStatus,
                 "Grant audio permission", v -> requestRuntimePermissions());
+        addDivider(access);
+
+        mediaSessionStatus = statusText();
+        addAccessItem(access, "Music notification access (optional)", mediaSessionStatus,
+                "Open Android notification access", v -> openMusicAccessSettings());
+        LinearLayout musicRow = horizontalRow();
+        TextView musicCopy = text("Use playing media sessions from selected apps",
+                14, color(R.color.text));
+        musicRow.addView(musicCopy, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Switch musicDetection = new Switch(this);
+        musicDetection.setShowText(false);
+        musicDetection.setThumbTintList(switchThumbTint());
+        musicDetection.setTrackTintList(switchTrackTint());
+        musicDetection.setChecked(Prefs.mediaSessionDetectionEnabled(this));
+        musicRow.addView(musicDetection, wrapParams());
+        access.addView(musicRow, matchParams(8, 5));
+        musicDetection.setOnCheckedChangeListener((buttonView, enabled) -> {
+            Prefs.get(this).edit().putBoolean(Prefs.KEY_MEDIA_SESSION_DETECTION, enabled).apply();
+            refreshService();
+            updateStatus();
+        });
+        TextView mediaDisclosure = text(
+                "Android's notification-listener permission can expose all notifications. "
+                + "PulseWave uses it only to check whether selected music apps have playing "
+                + "media sessions. It does not read or save notification text, messages, or artwork. "
+                + "You can turn this off here or revoke access in Android Settings.",
+                12, color(R.color.text_secondary));
+        access.addView(mediaDisclosure, matchParams(5, 0));
         addBlock(root, access, 0, 24);
 
         section(root, "SELECTED APPS", "Choose which foreground apps can activate the visualizer.");
@@ -441,6 +471,16 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void openMusicAccessSettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    "Open Android Settings > Apps > Special app access > Notification access",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void testOverlay() {
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "Display over other apps is off. Enable it first.", Toast.LENGTH_LONG).show();
@@ -472,6 +512,12 @@ public class MainActivity extends Activity {
 
         audioStatus.setText(audio ? "GRANTED" : "NEEDS ACCESS");
         audioStatus.setTextColor(audio ? color(R.color.status_success) : color(R.color.status_warning));
+
+        boolean enabled = Prefs.mediaSessionDetectionEnabled(this);
+        boolean granted = MusicSessionListener.hasAccess(this);
+        mediaSessionStatus.setText(!enabled ? "OFF" : granted ? "GRANTED" : "NEEDS ACCESS");
+        mediaSessionStatus.setTextColor(!enabled ? color(R.color.text_secondary)
+                : granted ? color(R.color.status_success) : color(R.color.status_warning));
 
         Set<String> selected = Prefs.selectedApps(this);
         selectedCount.setText(selected.size() + (selected.size() == 1 ? " app selected" : " apps selected"));
