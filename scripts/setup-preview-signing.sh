@@ -6,7 +6,7 @@ umask 077
 
 REPO="jerry090900/Pulse_Wave"
 ALIAS="pulsewave-preview"
-KEY_DIR="\${XDG_DATA_HOME:-$HOME/.local/share}/pulsewave-signing"
+KEY_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/pulsewave-signing"
 KEYSTORE="$KEY_DIR/preview-updateable.p12"
 
 for executable in gh keytool base64 awk tr grep; do
@@ -26,8 +26,11 @@ chmod 700 "$KEY_DIR"
 
 if [ ! -f "$KEYSTORE" ]; then
   # Replacing an existing server-side key would permanently break APK updates.
-  if gh secret list --repo "$REPO" --json name --jq '.[].name' \
-       | grep -qx 'PW_PREVIEW_KEYSTORE_BASE64'; then
+  EXISTING_SECRETS="$(gh secret list --repo "$REPO" --json name --jq '.[].name')" || {
+    echo "Cannot check existing GitHub signing secrets. No new key generated." >&2
+    exit 1
+  }
+  if printf '%s\n' "$EXISTING_SECRETS" | grep -qx 'PW_PREVIEW_KEYSTORE_BASE64'; then
     echo "STOP: GitHub already has a Preview signing key but your local keystore is missing." >&2
     echo "Recover the backup instead of generating another signing identity." >&2
     exit 1
