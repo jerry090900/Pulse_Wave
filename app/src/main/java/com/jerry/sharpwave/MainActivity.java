@@ -292,8 +292,8 @@ public class MainActivity extends Activity {
                 "Low frequencies peak in the center; higher notes spread to both edges.",
                 Prefs.KEY_CENTER_BASS, Prefs.centeredBass(this));
         addDivider(motionPanel);
-        addMotionToggle(motionPanel, "Solid-color bars",
-                "Each bar uses one solid color instead of stacked red and white.",
+        addMotionToggle(motionPanel, "Solid-color bars (legacy mode)",
+                "For the old visualizer only. Studio designs use their own two-color setting.",
                 Prefs.KEY_SINGLE_COLOR, Prefs.singleColorBars(this));
         addDivider(motionPanel);
         addMotionToggle(motionPanel, "Follow playback loudness",
@@ -332,6 +332,10 @@ public class MainActivity extends Activity {
         });
         lockScreenStatus = statusText();
         lockPanel.addView(lockScreenStatus, matchParams(14, 0));
+        Button inspectLock = secondaryButton("Check last lock-screen attempt");
+        inspectLock.setOnClickListener(v -> Toast.makeText(this,
+                OverlayService.lockScreenDiagnostic(), Toast.LENGTH_LONG).show());
+        lockPanel.addView(inspectLock, matchParams(10, 0, 48));
         TextView lockNote = text("Screen-on only. Android may hide overlays or block background launches on a secure lock screen. PulseWave cannot replace the actual lock screen, fingerprint animation, or display-off AOD.",
                 13, color(R.color.text_secondary));
         lockPanel.addView(lockNote, matchParams(8, 0));

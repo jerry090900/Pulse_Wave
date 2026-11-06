@@ -37,6 +37,7 @@ final class StudioStore {
                 p.gap = item.optInt("gap", 1);
                 p.height = item.optInt("height", 92);
                 p.sensitivity = item.optInt("sensitivity", 160);
+                p.twoTone = item.optBoolean("twoTone", true);
                 p.ringSize = item.optInt("ringSize", 108);
                 p.offsetY = item.optInt("offsetY", 65);
                 p.opacity = item.optInt("opacity", 100);
@@ -101,6 +102,7 @@ final class StudioStore {
                 item.put("gap", p.gap);
                 item.put("height", p.height);
                 item.put("sensitivity", p.sensitivity);
+                item.put("twoTone", p.twoTone);
                 item.put("ringSize", p.ringSize);
                 item.put("offsetY", p.offsetY);
                 item.put("opacity", p.opacity);

@@ -75,6 +75,13 @@ public class OverlayService extends Service {
     }
 
     /** Local-only troubleshooting; a global mix cannot identify a specific music app. */
+    /** Evidence from the last screen-on host attempt, without claiming OS support. */
+    public static String lockScreenDiagnostic() {
+        OverlayService service = activeInstance;
+        if (!running || service == null) return "Start PulseWave before testing the lock screen";
+        return service.lastLockHostAttempt;
+    }
+
     public static String audioSignalStatus() {
         OverlayService service = activeInstance;
         if (!running || service == null) return "Visualizer service is stopped";
@@ -129,6 +136,7 @@ public class OverlayService extends Service {
     private boolean keyguardLocked;
     private boolean lockHostRequested;
     private boolean lockHostUnavailable;
+    private String lastLockHostAttempt = "No lock-screen attempt recorded yet";
 
     private final Runnable endPreview = new Runnable() {
         @Override public void run() {
@@ -163,7 +171,10 @@ public class OverlayService extends Service {
             lockHostRequested = false;
             if (!LockScreenActivity.isShowing()) {
                 lockHostUnavailable = true;
-                updateNotification("Lock-screen host blocked by this device");
+                lastLockHostAttempt = "Requested while screen-on locked, but host did not appear";
+                updateNotification("Lock-screen host did not appear after request");
+            } else {
+                lastLockHostAttempt = "Screen-on host was visible at last check";
             }
         }
     };
@@ -600,7 +611,7 @@ public class OverlayService extends Service {
                             ? "Lock-screen experiment: reacting to " + appLabel(activeSourcePackage)
                             : "Lock-screen experiment: test overlay");
                 } else if (lockHostUnavailable) {
-                    updateNotification("Lock-screen host blocked; overlay best effort");
+                    updateNotification("Lock-screen host not visible; overlay best effort");
                 } else {
                     updateNotification("Starting lock-screen host");
                 }
@@ -632,10 +643,12 @@ public class OverlayService extends Service {
         if (LockScreenActivity.isShowing()) {
             lockHostRequested = false;
             lockHostUnavailable = false;
+            lastLockHostAttempt = "Screen-on host was visible at last check";
             return;
         }
         if (lockHostRequested || lockHostUnavailable) return;
         lockHostRequested = true;
+        lastLockHostAttempt = "Screen-on lock host requested; waiting for visibility";
         Intent intent = new Intent(this, LockScreenActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                         | Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -643,9 +656,11 @@ public class OverlayService extends Service {
         try {
             startActivity(intent);
             handler.postDelayed(lockHostCheck, LOCK_HOST_GRACE_MS);
-        } catch (Exception ignored) {
+        } catch (Exception error) {
             lockHostRequested = false;
             lockHostUnavailable = true;
+            lastLockHostAttempt = "Launch exception: " + error.getClass().getSimpleName();
+            android.util.Log.w("PulseWaveLock", "Screen-on host launch failed", error);
         }
     }
 

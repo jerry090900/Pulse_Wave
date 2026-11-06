@@ -19,6 +19,7 @@ final class StudioPreset {
     int gap = 1;
     int height = 92;
     int sensitivity = 160;
+    boolean twoTone = true; // Built-in and user-created Studio styles default to dual color.
     int ringSize = 108;
     int offsetY = 65; // percent of preview height
     int opacity = 100;
@@ -43,6 +44,7 @@ final class StudioPreset {
         p.gap = gap;
         p.height = height;
         p.sensitivity = sensitivity;
+        p.twoTone = twoTone;
         p.ringSize = ringSize;
         p.offsetY = offsetY;
         p.opacity = opacity;

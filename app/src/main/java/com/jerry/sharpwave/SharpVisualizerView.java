@@ -54,6 +54,7 @@ public class SharpVisualizerView extends View {
     private int palette = Prefs.PALETTE_DHH_SIGNATURE;
     private int studioMode = StudioPreset.BARS;
     private boolean studioColorsActive;
+    private boolean studioTwoTone = true;
     private int studioPrimary = 0xFFFFFFFF;
     private int studioAccent = 0xFF9F000E;
     private boolean centerBass = true;
@@ -89,9 +90,11 @@ public class SharpVisualizerView extends View {
         if (scene == null || !scene.isAudio()) {
             studioMode = StudioPreset.BARS;
             studioColorsActive = false;
+            studioTwoTone = true;
         } else {
             studioMode = scene.type;
             studioColorsActive = true;
+            studioTwoTone = scene.twoTone;
             studioPrimary = scene.primary;
             studioAccent = scene.accent;
         }
@@ -274,113 +277,24 @@ public class SharpVisualizerView extends View {
                     + (rawTargets[left] + rawTargets[right]) * NEIGHBOR_SIDE;
         }
 
-        studioPath.reset();
+        // Preserve FFT band mapping, loudness, smoothing and frame cadence unchanged.
+        // Only geometry and paint now come from the same renderer as Studio's preview.
         for (int i = 0; i < count; i++) {
             float target = blurredTargets[i];
             float tau = target > smoothed[i] ? ATTACK_TAU_SECONDS : RELEASE_TAU_SECONDS;
             smoothed[i] = smoothLevel(smoothed[i], target, elapsed, tau * 1000f);
-
-            float x = i * step;
-            float h = Math.min(height, Math.max(0f, smoothed[i] * height));
-            float top = height - h;
-            float bottom = height;
-            float right = i == count - 1 ? width : x + barWidth;
-            if (right <= x) continue;
-
-            if (studioColorsActive && studioMode == StudioPreset.WAVE) {
-                float y = Math.max(1f, height * (0.82f - smoothed[i] * .72f));
-                float center = (x + right) * .5f;
-                if (i == 0) studioPath.moveTo(center, y);
-                else studioPath.lineTo(center, y);
-                continue;
-            }
-
-            if (studioColorsActive && studioMode == StudioPreset.SPIKES) {
-                drawStudioSpike(canvas, x, right, top, bottom, smoothed[i]);
-                continue;
-            }
-
-            if (solidBars) {
-                paint.setColor(studioColorsActive
-                        ? studioPrimary : PALETTES[paletteIndex(palette)][0]);
-                canvas.drawRect(x, top, right, bottom, paint);
-            } else if (isTwoTonePalette()) {
-                drawTwoToneBar(canvas, x, right, top, bottom, smoothed[i]);
-            } else {
-                int band = centerBass ? mirroredBandIndex(i, count) : i;
-                float colorFrequency = fftReady
-                        ? bandCenterFrequency(band, bins, sampleRate)
-                        : barFrequency(band, count);
-                paint.setColor(colorFor(colorFrequency));
-                canvas.drawRect(x, top, right, bottom, paint);
-            }
         }
-        if (studioColorsActive && studioMode == StudioPreset.WAVE) {
-            boolean antiAlias = paint.isAntiAlias();
-            paint.setAntiAlias(true);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Math.max(dp(2f), dp(spikeWidthDp) * .5f));
-            paint.setStrokeJoin(Paint.Join.ROUND);
-            paint.setColor(studioAccent);
-            canvas.drawPath(studioPath, paint);
-            paint.setStrokeWidth(dp(1.5f));
-            paint.setColor(studioPrimary);
-            canvas.drawPath(studioPath, paint);
-            paint.setStyle(Paint.Style.FILL);
-            paint.setAntiAlias(antiAlias);
-        }
-    }
-
-    private boolean isTwoTonePalette() {
-        return studioColorsActive || paletteIndex(palette) == Prefs.PALETTE_DHH_SIGNATURE;
-    }
-
-    private void drawStudioSpike(Canvas canvas, float left, float right,
-            float top, float bottom, float inputLevel) {
-        if (bottom - top <= 0f) return;
-        studioPath.reset();
-        studioPath.moveTo(left, bottom);
-        studioPath.lineTo((left + right) * .5f, top);
-        studioPath.lineTo(right, bottom);
-        studioPath.close();
-        paint.setColor(solidBars ? studioPrimary : studioAccent);
-        canvas.drawPath(studioPath, paint);
-        if (!solidBars) {
-            float seam = top + (bottom - top) * (.40f + .20f * (1f - inputLevel));
-            canvas.save();
-            canvas.clipRect(left, top, right, seam);
-            paint.setColor(studioPrimary);
-            canvas.drawPath(studioPath, paint);
-            canvas.restore();
-        }
-    }
-
-    private void drawTwoToneBar(Canvas canvas, float left, float right,
-            float top, float bottom, float inputLevel) {
-        float height = bottom - top;
-        if (height <= 0f) return;
-        float radius = Math.min((right - left) * 0.5f, height * 0.5f);
-        float redFraction = TWO_TONE_MIN_RED_FRACTION
-                + (TWO_TONE_MAX_RED_FRACTION - TWO_TONE_MIN_RED_FRACTION)
-                * Math.max(0f, Math.min(1f, inputLevel));
-        float minSegment = Math.min(TWO_TONE_MIN_SEGMENT_PX, height * 0.5f);
-        float redHeight = Math.max(minSegment, Math.min(height - minSegment,
-                height * redFraction));
-        float seam = height - redHeight;
-        boolean antiAlias = paint.isAntiAlias();
-        paint.setAntiAlias(true);
-
-        paint.setColor(studioColorsActive
-                ? studioAccent : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][1]);
-        canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
-
-        int saveCount = canvas.save();
-        canvas.clipRect(left, top, right, top + seam);
-        paint.setColor(studioColorsActive
-                ? studioPrimary : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0]);
-        canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
-        canvas.restoreToCount(saveCount);
-        paint.setAntiAlias(antiAlias);
+        boolean twoTone = StudioAudioRenderer.useTwoColors(
+                studioColorsActive, studioTwoTone, solidBars);
+        int primary = studioColorsActive
+                ? studioPrimary : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0];
+        int accent = studioColorsActive
+                ? studioAccent : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][1];
+        StudioAudioRenderer.draw(canvas, paint, studioPath, width, height,
+                Math.max(1f, dp(spikeWidthDp)), Math.max(0f, dp(gapDp)),
+                getResources().getDisplayMetrics().density, smoothed,
+                studioColorsActive ? studioMode : StudioPreset.BARS,
+                primary, accent, twoTone);
     }
 
     private void ensureRenderArrays(int count) {
