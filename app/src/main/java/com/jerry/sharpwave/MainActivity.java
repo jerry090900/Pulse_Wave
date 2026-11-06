@@ -106,7 +106,7 @@ public class MainActivity extends Activity {
         title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         addBlock(root, title, 0, 4);
 
-        TextView desc = text("A focused top-edge visualizer for the music you already play.",
+        TextView desc = text("Audio-reactive visuals and your personal phone design studio.",
                 16, color(R.color.text_secondary));
         addBlock(root, desc, 0, 18);
 
@@ -124,7 +124,24 @@ public class MainActivity extends Activity {
         TextView heroNote = text("Full-width spikes stay out of the way until the sound moves.",
                 13, color(R.color.text_secondary));
         hero.addView(heroNote, matchParams(5, 0));
-        addBlock(root, hero, 0, 24);
+        addBlock(root, hero, 0, 18);
+
+        section(root, "PULSEWAVE STUDIO",
+                "Create audio styles, photo clock designs and decorative fingerprint rings.");
+        LinearLayout studioPanel = panel();
+        StudioPreviewView studioPreview = new StudioPreviewView(this);
+        StudioPreset activeStudio = StudioStore.activeAudio(this);
+        studioPreview.setScene(activeStudio != null ? activeStudio
+                : StudioStore.load(this).get(0));
+        studioPanel.addView(studioPreview, matchParams(0, 0, 152));
+        TextView studioNote = text("Gallery · Edit · Live demo · Save · Apply", 13,
+                color(R.color.text_secondary));
+        studioPanel.addView(studioNote, matchParams(9, 7));
+        Button openStudio = primaryButton("Open PulseWave Studio");
+        openStudio.setOnClickListener(v ->
+                startActivity(new Intent(this, StudioActivity.class)));
+        studioPanel.addView(openStudio, matchParams(4, 0, 52));
+        addBlock(root, studioPanel, 0, 24);
 
         section(root, "ACCESS", "Give PulseWave the access it needs to listen and draw.");
         LinearLayout access = panel();
