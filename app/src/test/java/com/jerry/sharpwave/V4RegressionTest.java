@@ -201,31 +201,14 @@ public class V4RegressionTest {
     }
 
     @Test
-    public void allTenPaletteNamesAndNothingMinimalAnchorsRemainFixed() {
-        int[][] anchors = {
-                {0xFFFFFFFF, 0xFF9F000E, 0xFFB8B8B8},
-                {0xFFF4F4F4, 0xFF6E0B14, 0xFF8E8E8E},
-                {0xFFEDEDED, 0xFF8B000C, 0xFF666666},
-                {0xFFF8F8F8, 0xFFB00012, 0xFF4A4A4A},
-                {0xFFFFFFFF, 0xFFBFC5CC, 0xFF7F8B99},
-                {0xFFE8E8E8, 0xFF7D0B16, 0xFF7B7B7B},
-                {0xFFF7F7F7, 0xFFA3001B, 0xFFB5B8BD},
-                {0xFFFFFFFF, 0xFF9F000E, 0xFF9A9A9A},
-                {0xFFCFCFCF, 0xFF640912, 0xFF555555},
-                {0xFFE5E7EA, 0xFF721521, 0xFF727A84}
-        };
-        assertEquals(10, Prefs.PALETTE_NAMES.length);
-        for (int i = 0; i < Prefs.PALETTE_COUNT; i++) {
-            assertEquals(i, SharpVisualizerView.paletteIndex(i));
-            for (int anchor = 0; anchor < 3; anchor++) {
-                assertEquals(anchors[i][anchor], SharpVisualizerView.paletteAnchor(i, anchor));
-            }
-        }
+    public void oneSignaturePaletteRemainsStableAndOldIndexFallsBack() {
+        assertEquals(1, Prefs.PALETTE_COUNT);
+        assertEquals(1, Prefs.PALETTE_NAMES.length);
+        assertEquals("DHH Signature", Prefs.PALETTE_NAMES[0]);
         assertEquals(0, SharpVisualizerView.paletteIndex(-1));
-        assertEquals(0, SharpVisualizerView.paletteIndex(10));
-        assertEquals(0xFFFFFFFF, SharpVisualizerView.paletteAnchor(7, 0));
-        assertEquals(0xFF9F000E, SharpVisualizerView.paletteAnchor(7, 1));
-        assertEquals(0xFFD7D7D7, SharpVisualizerView.nothingMinimalBody());
-        assertEquals(0xFF9A9A9A, SharpVisualizerView.paletteAnchor(7, 2));
-    }
-}
+        assertEquals(0, SharpVisualizerView.paletteIndex(0));
+        assertEquals(0, SharpVisualizerView.paletteIndex(9));
+        assertEquals(0xFFFFFFFF, SharpVisualizerView.paletteAnchor(0, 0));
+        assertEquals(0xFF9F000E, SharpVisualizerView.paletteAnchor(0, 1));
+        assertEquals(0xFFB8B8B8, SharpVisualizerView.paletteAnchor(0, 2));
+    }}
