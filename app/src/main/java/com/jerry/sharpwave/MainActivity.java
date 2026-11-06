@@ -36,6 +36,7 @@ public class MainActivity extends Activity {
     private TextView audioStatus;
     private TextView selectedCount;
     private TextView lockScreenStatus;
+    private boolean returningFromStudio;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,6 +51,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (returningFromStudio) {
+            returningFromStudio = false;
+            View refreshed = buildUi();
+            setContentView(refreshed);
+            refreshed.requestApplyInsets();
+        }
         updateStatus();
     }
 
@@ -138,8 +145,10 @@ public class MainActivity extends Activity {
                 color(R.color.text_secondary));
         studioPanel.addView(studioNote, matchParams(9, 7));
         Button openStudio = primaryButton("Open PulseWave Studio");
-        openStudio.setOnClickListener(v ->
-                startActivity(new Intent(this, StudioActivity.class)));
+        openStudio.setOnClickListener(v -> {
+            returningFromStudio = true;
+            startActivity(new Intent(this, StudioActivity.class));
+        });
         studioPanel.addView(openStudio, matchParams(4, 0, 52));
         addBlock(root, studioPanel, 0, 24);
 
