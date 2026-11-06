@@ -52,6 +52,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        OverlayService.setAppUiVisible(true);
         if (returningFromStudio) {
             returningFromStudio = false;
             View refreshed = buildUi();
@@ -59,6 +60,12 @@ public class MainActivity extends Activity {
             refreshed.requestApplyInsets();
         }
         updateStatus();
+    }
+
+    @Override
+    protected void onPause() {
+        OverlayService.setAppUiVisible(false);
+        super.onPause();
     }
 
     @Override
