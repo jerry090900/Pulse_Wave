@@ -213,6 +213,7 @@ public class MainActivity extends Activity {
         palette.setOnCheckedChangeListener((group, checkedId) -> {
             int value = Math.max(0, checkedId - 1000);
             Prefs.get(this).edit().putInt(Prefs.KEY_PALETTE, value).apply();
+            StudioStore.clearAppliedAudio(this);
             refreshService();
         });
         controls.addView(palette, matchParams(4, 0));
@@ -309,7 +310,10 @@ public class MainActivity extends Activity {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int value = min + progress;
                 valueLabel.setText(String.valueOf(value));
-                if (fromUser) Prefs.get(MainActivity.this).edit().putInt(key, value).apply();
+                if (fromUser) {
+                    Prefs.get(MainActivity.this).edit().putInt(key, value).apply();
+                    StudioStore.clearAppliedAudio(MainActivity.this);
+                }
             }
 
             public void onStartTrackingTouch(SeekBar seekBar) {}
