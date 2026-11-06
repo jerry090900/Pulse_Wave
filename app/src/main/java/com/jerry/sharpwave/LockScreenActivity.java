@@ -72,6 +72,7 @@ public class LockScreenActivity extends Activity {
             LockScreenActivity activity = instance;
             if (isUsableInstance(activity) && activity.visualizerView != null) {
                 activity.visualizerView.setStyle(spikeWidth, gap, sensitivity, palette);
+                activity.visualizerView.setStudioScene(StudioStore.activeAudio(activity));
             }
         }
     }
@@ -108,6 +109,7 @@ public class LockScreenActivity extends Activity {
                 Prefs.gap(this),
                 Prefs.sensitivity(this),
                 Prefs.palette(this));
+        visualizerView.setStudioScene(StudioStore.activeAudio(this));
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.TRANSPARENT);

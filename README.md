@@ -11,6 +11,19 @@ PulseWave is a small open-source Android audio visualizer overlay built around t
 - adjustable spike width, gap, maximum height and sensitivity
 - no ads and no network permission
 
+## PulseWave Studio — initial editor milestone
+
+Open **PulseWave Studio** on the home screen to browse original style presets, tap **Edit**, see a generated motion preview, and **Save** or **Apply**. Styles are stored locally in private app preferences.
+
+- **Audio styles**: joined white/red bars, thin bars, spikes and waves. Saving and applying an audio style updates the existing output-mix visualizer overlay when it is enabled. Existing selected-app detection and service permissions are unchanged.
+- **Photo clock**: choose an image through Android's **Open Document** picker; the app retains only a user-granted read URI and renders the photo with an adjustable opacity and clock in its in-app preview. Photos are not uploaded or copied to a hidden server.
+- **Fingerprint halo**: adjustable size, position, colors and animation in an in-app preview. It is **not** a real biometric sensor animation and cannot detect or replace the system fingerprint unlock screen.
+- **Preset editing**: color selections, width/gap/height/sensitivity, local Save, Duplicate and Apply. Legacy visualizer controls remain available and override a selected Studio audio preset when manually changed.
+
+**Limitations of this milestone:** The Studio uses *generated demo motion*, not live captured audio, inside the editor. Applying photo and fingerprint presets selects only their Studio preview; it does **not** replace OEM AOD or system biometric behavior. No background AOD service, Accessibility access, notification listener, or extra privileged permissions were added. Different devices may limit overlay and audio capture. Android 10–17 compatibility has not been validated on hardware.
+
+Planned next milestones: draggable canvas elements, richer photo masks/layouts, preset import/export, opt-in media notification sessions, charging effects, sensor-driven rules, plus real-device power and lock-screen QA.
+
 ## Permissions
 
 PulseWave asks for three user-facing permissions:

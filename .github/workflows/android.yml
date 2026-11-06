@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "fix/ci-portable-aapt2-20261106" ]
   workflow_dispatch:
 
 jobs:
@@ -21,8 +21,41 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
+      - name: Run unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
+      - name: Verify built APK size and Studio classes
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import pathlib
+          import zipfile
+
+          apk = pathlib.Path("app/build/outputs/apk/debug/app-debug.apk")
+          if not apk.is_file():
+              raise SystemExit("APK missing")
+          print("APK_BYTES:", apk.stat().st_size)
+          print("APK_SHA256:", hashlib.sha256(apk.read_bytes()).hexdigest())
+          with zipfile.ZipFile(apk) as z:
+              bad = z.testzip()
+              if bad:
+                  raise SystemExit("Corrupt APK entry: " + bad)
+              names = z.namelist()
+              dex_files = [n for n in names if n.startswith("classes") and n.endswith(".dex")]
+              print("APK_ENTRIES:", len(names))
+              print("DEX_FILES:", dex_files)
+              print("HAS_ANDROID_MANIFEST:", "AndroidManifest.xml" in names)
+              if not dex_files or "AndroidManifest.xml" not in names:
+                  raise SystemExit("Missing DEX or AndroidManifest.xml")
+              data = b"".join(z.read(n) for n in dex_files)
+              for cls in ("StudioActivity", "StudioPreset", "StudioStore", "StudioPreviewView", "MainActivity", "OverlayService"):
+                  descriptor = ("Lcom/jerry/sharpwave/" + cls + ";").encode()
+                  found = descriptor in data
+                  print("DEX_CLASS_" + cls + ":", found)
+                  if not found:
+                      raise SystemExit("Required class missing: " + cls)
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: PulseWave-debug-apk
