@@ -33,6 +33,9 @@ final class StudioStore {
                 p.type = item.optInt("type", StudioPreset.BARS);
                 p.primary = item.optInt("primary", 0xFFFFFFFF);
                 p.accent = item.optInt("accent", 0xFF9F000E);
+                p.third = item.optInt("third", 0xFF19CFFA);
+                p.flowStrength = item.optInt("flowStrength", 80);
+                p.colorMode = item.has("colorMode") ? item.optInt("colorMode", -1) : -1;
                 p.width = item.optInt("width", 5);
                 p.gap = item.optInt("gap", 1);
                 p.height = item.optInt("height", 92);
@@ -98,6 +101,9 @@ final class StudioStore {
                 item.put("type", p.type);
                 item.put("primary", p.primary);
                 item.put("accent", p.accent);
+                item.put("third", p.third);
+                item.put("colorMode", p.effectiveColorMode());
+                item.put("flowStrength", p.flowStrength);
                 item.put("width", p.width);
                 item.put("gap", p.gap);
                 item.put("height", p.height);
