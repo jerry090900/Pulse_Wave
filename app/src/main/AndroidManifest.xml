@@ -28,6 +28,10 @@
         android:theme="@style/Theme.PulseWave">
 
         <activity
+            android:name=".StudioActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".AppPickerActivity"
             android:exported="false" />
 
