@@ -21,6 +21,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
+      - name: Check signing setup script syntax
+        run: bash -n scripts/setup-preview-signing.sh
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
       # PR builds run regression tests without access to the permanent signing key.
