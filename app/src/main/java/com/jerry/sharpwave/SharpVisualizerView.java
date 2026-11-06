@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.view.View;
 
 public class SharpVisualizerView extends View {
@@ -63,6 +64,11 @@ public class SharpVisualizerView extends View {
     private int gapDp = 1;
     private int sensitivity = 160;
     private int palette = Prefs.PALETTE_DHH_SIGNATURE;
+    private int studioMode = StudioPreset.BARS;
+    private boolean studioColorsActive;
+    private int studioPrimary = 0xFFFFFFFF;
+    private int studioAccent = 0xFF9F000E;
+    private final Path studioPath = new Path();
     private volatile long lastSpectrumAt;
     private long lastFrameAt;
 
@@ -82,6 +88,20 @@ public class SharpVisualizerView extends View {
         rawTargets = new float[0];
         blurredTargets = new float[0];
         mappedCount = -1;
+        invalidate();
+    }
+
+    /** Applies only original PulseWave-owned audio presets; null keeps legacy behavior. */
+    public void setStudioScene(StudioPreset scene) {
+        if (scene == null || !scene.isAudio()) {
+            studioMode = StudioPreset.BARS;
+            studioColorsActive = false;
+        } else {
+            studioMode = scene.type;
+            studioColorsActive = true;
+            studioPrimary = scene.primary;
+            studioAccent = scene.accent;
+        }
         invalidate();
     }
 
@@ -213,6 +233,7 @@ public class SharpVisualizerView extends View {
                     + (rawTargets[left] + rawTargets[right]) * NEIGHBOR_SIDE;
         }
 
+        studioPath.reset();
         for (int i = 0; i < count; i++) {
             float target = blurredTargets[i];
             float tau = target > smoothed[i] ? ATTACK_TAU_SECONDS : RELEASE_TAU_SECONDS;
@@ -222,6 +243,19 @@ public class SharpVisualizerView extends View {
             float h = Math.max(dp(2), smoothed[i] * height);
             float right = i == count - 1 ? width : x + barWidth;
             if (right <= x) continue;
+
+            if (studioColorsActive && studioMode == StudioPreset.WAVE) {
+                float y = Math.max(1f, height * (.75f - smoothed[i] * .67f));
+                float center = (x + right) * .5f;
+                if (i == 0) studioPath.moveTo(center, y);
+                else studioPath.lineTo(center, y);
+                continue;
+            }
+
+            if (studioColorsActive && studioMode == StudioPreset.SPIKES) {
+                drawStudioSpike(canvas, x, right, h, smoothed[i]);
+                continue;
+            }
 
             float colorFrequency = fftReady
                     ? bandCenterFrequency(i, bins, sampleRate)
@@ -233,10 +267,41 @@ public class SharpVisualizerView extends View {
                 canvas.drawRect(x, 0f, right, h, paint);
             }
         }
+        if (studioColorsActive && studioMode == StudioPreset.WAVE) {
+            boolean antiAlias = paint.isAntiAlias();
+            paint.setAntiAlias(true);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(dp(2f), dp(spikeWidthDp) * .5f));
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setColor(studioAccent);
+            canvas.drawPath(studioPath, paint);
+            paint.setStrokeWidth(dp(1.5f));
+            paint.setColor(studioPrimary);
+            canvas.drawPath(studioPath, paint);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setAntiAlias(antiAlias);
+        }
     }
 
     private boolean isTwoTonePalette() {
-        return paletteIndex(palette) == Prefs.PALETTE_DHH_SIGNATURE;
+        return studioColorsActive || paletteIndex(palette) == Prefs.PALETTE_DHH_SIGNATURE;
+    }
+
+    private void drawStudioSpike(Canvas canvas, float left, float right, float height,
+            float inputLevel) {
+        studioPath.reset();
+        studioPath.moveTo(left, 0);
+        studioPath.lineTo(right, 0);
+        studioPath.lineTo((left + right) * .5f, height);
+        studioPath.close();
+        paint.setColor(studioAccent);
+        canvas.drawPath(studioPath, paint);
+        float seam = height * (.40f + .20f * (1f - inputLevel));
+        canvas.save();
+        canvas.clipRect(left, 0f, right, seam);
+        paint.setColor(studioPrimary);
+        canvas.drawPath(studioPath, paint);
+        canvas.restore();
     }
 
     private void drawTwoToneBar(Canvas canvas, float left, float right, float height,
@@ -252,12 +317,14 @@ public class SharpVisualizerView extends View {
         boolean antiAlias = paint.isAntiAlias();
         paint.setAntiAlias(true);
 
-        paint.setColor(PALETTES[Prefs.PALETTE_DHH_SIGNATURE][1]);
+        paint.setColor(studioColorsActive
+                ? studioAccent : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][1]);
         canvas.drawRoundRect(left, 0f, right, height, radius, radius, paint);
 
         int saveCount = canvas.save();
         canvas.clipRect(left, 0f, right, seam);
-        paint.setColor(PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0]);
+        paint.setColor(studioColorsActive
+                ? studioPrimary : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0]);
         canvas.drawRoundRect(left, 0f, right, height, radius, radius, paint);
         canvas.restoreToCount(saveCount);
         paint.setAntiAlias(antiAlias);
