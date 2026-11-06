@@ -84,73 +84,45 @@ final class StudioPreviewView extends View {
         switch (preset.type) {
             case StudioPreset.PHOTO: drawPhotoClock(canvas, w, h); break;
             case StudioPreset.RING: drawRing(canvas, w, h, t); break;
-            case StudioPreset.SPIKES: drawBars(canvas, w, h, t, true); break;
-            case StudioPreset.WAVE: drawWave(canvas, w, h, t); break;
-            default: drawBars(canvas, w, h, t, false);
+            case StudioPreset.SPIKES:
+            case StudioPreset.WAVE:
+            case StudioPreset.BARS:
+            default:
+                drawSharedAudioPreview(canvas, w, h, t);
+                break;
         }
         if (animated && isShown() && isAttachedToWindow()) postInvalidateDelayed(45);
     }
 
-    private void drawBars(Canvas canvas, int w, int h, float t, boolean spikes) {
-        float bar = Math.max(dp(2), dp(preset.width));
-        float gap = dp(preset.gap);
-        int count = Math.max(1, Math.min(190, (int) Math.ceil((w + gap) / (bar + gap))));
-        float step = (w + gap) / count;
-        bar = Math.max(1f, step - gap);
-        float baseline = h * .68f;
-        float maxHeight = Math.min(h * .57f, dp(preset.height));
+    /**
+     * Draw the identical audio geometry as the live overlay, with synthesized demo
+     * amplitudes. The preview deliberately does NOT claim to be real audio capture.
+     */
+    private void drawSharedAudioPreview(Canvas canvas, int width, int height, float time) {
+        int bandHeight = Math.max(1, Math.min(height, Math.round(dp(preset.height))));
+        int y = (height - bandHeight) / 2;
+        float widthPx = Math.max(1f, dp(preset.width));
+        float gapPx = Math.max(0f, dp(preset.gap));
+        int count = StudioAudioRenderer.barCount(width, widthPx, gapPx);
+        if (count <= 0) return;
+        float[] levels = new float[count];
         for (int i = 0; i < count; i++) {
-            float envelope = .10f + .90f * Math.abs((float) Math.sin(i * .29f + t * .7f)
-                    * (float) Math.cos(i * .13f - t * .4f));
-            float level = StudioPreset.clamp(preset.sensitivity, 60, 260) / 160f;
-            float bh = Math.max(dp(2), Math.min(maxHeight, maxHeight * envelope * level));
-            float x = i * step;
-            float right = Math.min(w, x + bar);
-            float top = baseline - bh;
-            if (spikes) {
-                path.reset();
-                path.moveTo(x, baseline);
-                path.lineTo((x + right) / 2f, top);
-                path.lineTo(right, baseline);
-                path.close();
-                paint.setColor(alphaColor(preset.accent));
-                paint.setStyle(Paint.Style.FILL);
-                canvas.drawPath(path, paint);
-                canvas.save();
-                canvas.clipRect(x, top, right, top + bh * .48f);
-                paint.setColor(alphaColor(preset.primary));
-                canvas.drawPath(path, paint);
-                canvas.restore();
-            } else {
-                float seam = top + bh * .48f;
-                paint.setColor(alphaColor(preset.primary));
-                canvas.drawRect(x, top, right, seam, paint);
-                paint.setColor(alphaColor(preset.accent));
-                canvas.drawRect(x, seam, right, baseline, paint);
-            }
+            // Mirrored center-bass pattern; demo signal only, not microphone input.
+            int distance = SharpVisualizerView.mirroredBandIndex(i, count);
+            float bandEnvelope = 1f - 0.60f * distance / Math.max(1, count - 1);
+            float beat = 0.15f + .65f * Math.abs((float) Math.sin(
+                    time * .73f + distance * .22f))
+                    * Math.abs((float) Math.cos(time * .47f - distance * .13f));
+            float level = beat * bandEnvelope * preset.sensitivity / 160f;
+            levels[i] = Math.min(1f, Math.max(0f, level));
         }
-    }
-
-    private void drawWave(Canvas canvas, int w, int h, float t) {
-        path.reset();
-        float mid = h * .50f;
-        float amp = Math.min(h * .37f, dp(preset.height) * .65f)
-                * preset.sensitivity / 160f;
-        for (int x = 0; x <= w; x += 3) {
-            float y = mid + (float) Math.sin(x * .039f + t) * amp
-                    * (float) Math.sin(x * .009f + t * .45f);
-            if (x == 0) path.moveTo(x, y);
-            else path.lineTo(x, y);
-        }
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(dp(Math.max(2, preset.width / 2)));
-        paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setColor(alphaColor(preset.accent));
-        canvas.drawPath(path, paint);
-        paint.setStrokeWidth(dp(1.5f));
-        paint.setColor(alphaColor(preset.primary));
-        canvas.drawPath(path, paint);
-        paint.setStyle(Paint.Style.FILL);
+        int save = canvas.save();
+        canvas.translate(0, y);
+        StudioAudioRenderer.draw(canvas, paint, path, width, bandHeight,
+                widthPx, gapPx, getResources().getDisplayMetrics().density,
+                levels, preset.type, alphaColor(preset.primary),
+                alphaColor(preset.accent), preset.twoTone);
+        canvas.restoreToCount(save);
     }
 
     private void drawRing(Canvas canvas, int w, int h, float t) {
