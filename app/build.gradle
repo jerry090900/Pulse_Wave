@@ -10,11 +10,16 @@ android {
         applicationId 'com.jerry.sharpwave'
         minSdk 29
         targetSdk 36
-        versionCode 5
-        versionName '0.1.4'
+        versionCode 6
+        versionName '0.1.5'
     }
 
     buildTypes {
+        debug {
+            // Only the temporary preview build uses a separate installation identity.
+            applicationIdSuffix '.preview'
+            versionNameSuffix '-preview'
+        }
         release {
             minifyEnabled false
         }

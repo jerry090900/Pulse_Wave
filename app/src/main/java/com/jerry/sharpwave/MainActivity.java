@@ -266,9 +266,9 @@ public class MainActivity extends Activity {
         addBlock(root, controls, 0, 24);
 
         section(root, "POSITION & AUDIO RESPONSE",
-                "Center the visualizer and make louder bass hits produce taller bars.");
+                "Move the old equalizer independently. Wave stays centered; music sync is untouched.");
         LinearLayout motionPanel = panel();
-        motionPanel.addView(text("Screen position", 15, color(R.color.text)),
+        motionPanel.addView(text("Equalizer bars position (Wave stays centered)", 15, color(R.color.text)),
                 matchParams(0, 6));
         RadioGroup positions = new RadioGroup(this);
         String[] positionLabels = {"Top", "Middle (recommended)", "Bottom"};
@@ -287,7 +287,10 @@ public class MainActivity extends Activity {
                     Math.max(Prefs.POSITION_TOP, id - 6000)).apply();
             refreshService();
         });
-        motionPanel.addView(positions, matchParams(0, 13));
+        motionPanel.addView(positions, matchParams(0, 4));
+        motionPanel.addView(text("Top: old bars grow downward from the top edge. "
+                + "Middle and Bottom keep the original bar direction.",
+                12, color(R.color.text_secondary)), matchParams(0, 13));
         addMotionToggle(motionPanel, "Center the bass",
                 "Low frequencies peak in the center; higher notes spread to both edges.",
                 Prefs.KEY_CENTER_BASS, Prefs.centeredBass(this));

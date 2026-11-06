@@ -60,6 +60,7 @@ public class SharpVisualizerView extends View {
     private int studioThird = 0xFF19CFFA;
     private int studioColorMode = StudioPreset.COLOR_TWO;
     private int studioFlowStrength = 80;
+    private boolean barsDownward;
     private final MusicColorFlow musicColorFlow = new MusicColorFlow();
     private boolean centerBass = true;
     private boolean solidBars = true;
@@ -108,6 +109,12 @@ public class SharpVisualizerView extends View {
             studioFlowStrength = scene.flowStrength;
             musicColorFlow.reset();
         }
+        invalidate();
+    }
+
+    /** Top bars extend down from the screen edge. Never reverses Wave or FFT mapping. */
+    public void setBarsDownward(boolean enabled) {
+        barsDownward = enabled;
         invalidate();
     }
 
@@ -307,7 +314,7 @@ public class SharpVisualizerView extends View {
                 Math.max(1f, dp(spikeWidthDp)), Math.max(0f, dp(gapDp)),
                 getResources().getDisplayMetrics().density, smoothed,
                 studioColorsActive ? studioMode : StudioPreset.BARS,
-                primary, accent, studioThird, colorMode, colorPhase);
+                primary, accent, studioThird, colorMode, colorPhase, barsDownward);
     }
 
     private void ensureRenderArrays(int count) {

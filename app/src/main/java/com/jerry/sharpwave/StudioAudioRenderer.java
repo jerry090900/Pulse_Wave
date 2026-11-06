@@ -2,6 +2,7 @@ package com.jerry.sharpwave;
 
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Shader;
@@ -55,13 +56,46 @@ final class StudioAudioRenderer {
         return MusicColorFlow.threeColorAt(position, first, second, third);
     }
 
+    /** Top-anchored old bars grow down; WAVE preserves its original geometry. */
+    static float barTopY(float height, float level, boolean downward) {
+        float size = Math.max(0f, Math.min(1f, level)) * height;
+        return downward ? 0f : height - size;
+    }
+
+    static float barBottomY(float height, float level, boolean downward) {
+        float size = Math.max(0f, Math.min(1f, level)) * height;
+        return downward ? size : height;
+    }
+
+    /** A three-color gradient inside EACH bar, rather than one color per bar. */
+    static int[] verticalStops(int first, int middle, int third,
+            int colorMode, float phase) {
+        if (colorMode == StudioPreset.COLOR_THREE) {
+            return new int[]{first, middle, third};
+        }
+        int[] colors = new int[7];
+        for (int i = 0; i < colors.length; i++) {
+            colors[i] = colorForLine(i / (float) (colors.length - 1),
+                    first, middle, third, colorMode, phase);
+        }
+        return colors;
+    }
+
     /**
      * One shared renderer: static 1/2/3 colors and FFT-driven three-color flow.
-     * Moving colors never changes line shape, audio data, update cadence or placement.
+     * The optional direction changes only Bars, never FFT processing or Wave.
      */
     static void draw(Canvas canvas, Paint paint, Path path, int width, int height,
             float barWidthPx, float gapPx, float density, float[] levels, int mode,
             int primary, int accent, int third, int colorMode, float flowPhase) {
+        draw(canvas, paint, path, width, height, barWidthPx, gapPx, density,
+                levels, mode, primary, accent, third, colorMode, flowPhase, false);
+    }
+
+    static void draw(Canvas canvas, Paint paint, Path path, int width, int height,
+            float barWidthPx, float gapPx, float density, float[] levels, int mode,
+            int primary, int accent, int third, int colorMode, float flowPhase,
+            boolean barsDownward) {
         if (width <= 0 || height <= 0 || levels == null || levels.length == 0) return;
         int count = barCount(width, barWidthPx, gapPx);
         if (count != levels.length) {
@@ -73,6 +107,15 @@ final class StudioAudioRenderer {
         boolean twoTone = colorMode == StudioPreset.COLOR_TWO;
         boolean multiColor = colorMode == StudioPreset.COLOR_THREE
                 || colorMode == StudioPreset.COLOR_MUSIC_FLOW;
+        // Allocate one shader per rendered frame, not per FFT band.
+        LinearGradient barGradient = null;
+        Matrix gradientMatrix = null;
+        if (mode == StudioPreset.BARS && multiColor) {
+            barGradient = new LinearGradient(0f, 0f, 0f, 1f,
+                    verticalStops(primary, accent, third, colorMode, flowPhase),
+                    null, Shader.TileMode.CLAMP);
+            gradientMatrix = new Matrix();
+        }
         path.reset();
         for (int i = 0; i < count; i++) {
             float level = Math.max(0f, Math.min(1f, levels[i]));
@@ -80,7 +123,9 @@ final class StudioAudioRenderer {
             float right = i == count - 1 ? width : left + barWidth;
             if (right <= left) continue;
             float barHeight = level * height;
-            float top = height - barHeight;
+            boolean down = barsDownward && mode == StudioPreset.BARS;
+            float top = barTopY(height, level, down);
+            float bottom = barBottomY(height, level, down);
             float position = count <= 1 ? .5f : i / (float) (count - 1);
             int lineColor = multiColor
                     ? colorForLine(position, primary, accent, third, colorMode, flowPhase)
@@ -118,16 +163,27 @@ final class StudioAudioRenderer {
                 boolean antialias = paint.isAntiAlias();
                 paint.setAntiAlias(true);
                 paint.setColor(accent);
-                canvas.drawRoundRect(left, top, right, height, radius, radius, paint);
+                canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
                 int saved = canvas.save();
                 canvas.clipRect(left, top, right, top + seam);
                 paint.setColor(primary);
-                canvas.drawRoundRect(left, top, right, height, radius, radius, paint);
+                canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
                 canvas.restoreToCount(saved);
                 paint.setAntiAlias(antialias);
+            } else if (barGradient != null) {
+                if (barHeight <= 0f) continue;
+                // The shared gradient stretches to the individual bar height:
+                // even short bars contain all three colors in one line.
+                gradientMatrix.setScale(1f, barHeight);
+                gradientMatrix.postTranslate(0f, top);
+                barGradient.setLocalMatrix(gradientMatrix);
+                paint.setColor(0xFFFFFFFF);
+                paint.setShader(barGradient);
+                canvas.drawRect(left, top, right, bottom, paint);
+                paint.setShader(null);
             } else {
                 paint.setColor(lineColor);
-                canvas.drawRect(left, top, right, height, paint);
+                canvas.drawRect(left, top, right, bottom, paint);
             }
         }
 

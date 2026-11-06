@@ -231,9 +231,14 @@ public class OverlayService extends Service {
         int gap = Prefs.gap(this);
         int sensitivity = Prefs.sensitivity(this);
         int palette = Prefs.palette(this);
+        StudioPreset scene = StudioStore.activeAudio(this);
         if (visualizerView != null) {
             visualizerView.setStyle(spikeWidth, gap, sensitivity, palette);
-            visualizerView.setStudioScene(StudioStore.activeAudio(this));
+            visualizerView.setStudioScene(scene);
+            visualizerView.setBarsDownward(
+                    overlayPositionForScene(Prefs.overlayPosition(this), scene)
+                            == Prefs.POSITION_TOP
+                    && (scene == null || scene.type == StudioPreset.BARS));
             visualizerView.setPresentation(Prefs.centeredBass(this),
                     Prefs.singleColorBars(this), Prefs.bassGain(this));
         }
@@ -692,6 +697,15 @@ public class OverlayService extends Service {
         handler.removeCallbacks(previewTicker);
     }
 
+    /**
+     * The old equalizer owns the Top/Middle/Bottom setting. Wave's working
+     * middle-screen position remains independent; it is never moved by bar controls.
+     */
+    static int overlayPositionForScene(int requested, StudioPreset scene) {
+        return scene != null && scene.type == StudioPreset.WAVE
+                ? Prefs.POSITION_CENTER : requested;
+    }
+
     private void showOverlay() {
         if (overlayAdded) return;
         int heightPx = Math.round(Prefs.height(this) * getResources().getDisplayMetrics().density);
@@ -708,7 +722,8 @@ public class OverlayService extends Service {
                 flags,
                 PixelFormat.TRANSLUCENT
         );
-        int position = Prefs.overlayPosition(this);
+        int position = overlayPositionForScene(
+                Prefs.overlayPosition(this), StudioStore.activeAudio(this));
         params.gravity = (position == Prefs.POSITION_TOP ? Gravity.TOP
                 : position == Prefs.POSITION_BOTTOM ? Gravity.BOTTOM
                 : Gravity.CENTER_VERTICAL) | Gravity.START;

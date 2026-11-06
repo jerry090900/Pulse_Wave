@@ -103,7 +103,13 @@ final class StudioPreviewView extends View {
      */
     private void drawSharedAudioPreview(Canvas canvas, int width, int height, float time) {
         int bandHeight = Math.max(1, Math.min(height, Math.round(dp(preset.height))));
-        int y = (height - bandHeight) / 2;
+        int placement = OverlayService.overlayPositionForScene(
+                Prefs.overlayPosition(getContext()), preset);
+        int y = placement == Prefs.POSITION_TOP ? 0
+                : placement == Prefs.POSITION_BOTTOM ? height - bandHeight
+                : (height - bandHeight) / 2;
+        boolean barsDownward = preset.type == StudioPreset.BARS
+                && placement == Prefs.POSITION_TOP;
         float widthPx = Math.max(1f, dp(preset.width));
         float gapPx = Math.max(0f, dp(preset.gap));
         int count = StudioAudioRenderer.barCount(width, widthPx, gapPx);
@@ -128,7 +134,8 @@ final class StudioPreviewView extends View {
         StudioAudioRenderer.draw(canvas, paint, path, width, bandHeight,
                 widthPx, gapPx, getResources().getDisplayMetrics().density,
                 levels, preset.type, alphaColor(preset.primary),
-                alphaColor(preset.accent), alphaColor(preset.third), colorMode, colorPhase);
+                alphaColor(preset.accent), alphaColor(preset.third), colorMode, colorPhase,
+                barsDownward);
         canvas.restoreToCount(save);
     }
 
