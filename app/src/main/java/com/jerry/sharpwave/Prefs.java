@@ -22,6 +22,15 @@ final class Prefs {
             "Heartbreak Kid", "Jeweler Cut", "Nothing Minimal", "AMOLED Dusk", "Monsoon Mood"
     };
     static final String KEY_LOCK_SCREEN = "lock_screen_experimental";
+    // New defaults affect presentation only. Legacy prefs remain unchanged for existing installs.
+    static final String KEY_OVERLAY_POSITION = "overlay_position";
+    static final int POSITION_TOP = 0;
+    static final int POSITION_CENTER = 1;
+    static final int POSITION_BOTTOM = 2;
+    static final String KEY_CENTER_BASS = "center_bass";
+    static final String KEY_SINGLE_COLOR = "single_color_bars";
+    static final String KEY_BASS_GAIN = "bass_gain";
+    static final String KEY_AS_PLAYED = "capture_as_played";
 
     private Prefs() {}
 
@@ -47,4 +56,15 @@ final class Prefs {
         return value >= 0 && value < PALETTE_COUNT ? value : PALETTE_DHH_SIGNATURE;
     }
     static boolean lockScreenEnabled(Context c) { return get(c).getBoolean(KEY_LOCK_SCREEN, false); }
+
+    static int overlayPosition(Context c) {
+        int p = get(c).getInt(KEY_OVERLAY_POSITION, POSITION_CENTER);
+        return p >= POSITION_TOP && p <= POSITION_BOTTOM ? p : POSITION_CENTER;
+    }
+    static boolean centeredBass(Context c) { return get(c).getBoolean(KEY_CENTER_BASS, true); }
+    static boolean singleColorBars(Context c) { return get(c).getBoolean(KEY_SINGLE_COLOR, true); }
+    static int bassGain(Context c) {
+        return Math.max(100, Math.min(240, get(c).getInt(KEY_BASS_GAIN, 160)));
+    }
+    static boolean asPlayed(Context c) { return get(c).getBoolean(KEY_AS_PLAYED, true); }
 }
