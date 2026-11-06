@@ -44,7 +44,8 @@ public class OverlayService extends Service {
     private static final long SELECTED_GRACE_PERIOD_MS = 8000L;
     private static final long AUDIO_HOLD_MS = 2500L;
     private static final long LOCK_HOST_GRACE_MS = 1500L;
-    private static final long LOCK_SCREEN_SELECTED_HOLD_MS = 12L * 60L * 60L * 1000L;
+    // Short, bounded continuation after a known selected app is backgrounded.
+    private static final long LOCK_SCREEN_SELECTED_HOLD_MS = 2L * 60L * 1000L;
     private static final float FFT_ACTIVITY_THRESHOLD = 2.0f;
     private static final long VISUALIZER_RETRY_INITIAL_DELAY_MS = 1000L;
     private static final long VISUALIZER_RETRY_MAX_DELAY_MS = 30_000L;
@@ -68,6 +69,7 @@ public class OverlayService extends Service {
     private volatile long visualizerGeneration;
     private volatile long lastVisualizerCallbackAt;
     private long visualizerRetryAt;
+    private boolean captureAsPlayed = true;
     private long visualizerRetryDelayMs = VISUALIZER_RETRY_INITIAL_DELAY_MS;
     private volatile boolean destroyed;
     private float[] fftSpectrum = new float[0];
@@ -185,8 +187,12 @@ public class OverlayService extends Service {
         if (visualizerView != null) {
             visualizerView.setStyle(spikeWidth, gap, sensitivity, palette);
             visualizerView.setStudioScene(StudioStore.activeAudio(this));
+            visualizerView.setPresentation(Prefs.centeredBass(this),
+                    Prefs.singleColorBars(this), Prefs.bassGain(this));
         }
         LockScreenActivity.applyStyle(spikeWidth, gap, sensitivity, palette);
+        LockScreenActivity.applyPresentation(Prefs.centeredBass(this),
+                Prefs.singleColorBars(this), Prefs.bassGain(this));
     }
 
     private void updateDisplayState() {
@@ -304,7 +310,10 @@ public class OverlayService extends Service {
             long selectedForegroundAge = lastSelectedForegroundAt > 0L
                     ? nowWall - lastSelectedForegroundAt
                     : Long.MAX_VALUE;
-            lockScreenHold = selectedWasLastApp
+            // Continue a recently selected music source when the user visited launcher/Studio.
+            lockScreenHold = selectedPackageEnabled
+                    && activeSourcePackage != null
+                    && activeSourcePackage.equals(selectedPackage)
                     && selectedForegroundAge >= 0L
                     && selectedForegroundAge <= LOCK_SCREEN_SELECTED_HOLD_MS;
         }
@@ -451,6 +460,11 @@ public class OverlayService extends Service {
 
         long now = SystemClock.elapsedRealtime();
         Visualizer current = visualizer;
+        if (current != null && captureAsPlayed != Prefs.asPlayed(this)) {
+            stopVisualizer();
+            resetVisualizerRetry();
+            current = null;
+        }
         if (current != null) {
             boolean enabled;
             try {
@@ -605,8 +619,7 @@ public class OverlayService extends Service {
         int heightPx = Math.round(Prefs.height(this) * getResources().getDisplayMetrics().density);
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
         if (Prefs.lockScreenEnabled(this)) {
             flags |= WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED;
         }
@@ -617,7 +630,10 @@ public class OverlayService extends Service {
                 flags,
                 PixelFormat.TRANSLUCENT
         );
-        params.gravity = Gravity.TOP | Gravity.START;
+        int position = Prefs.overlayPosition(this);
+        params.gravity = (position == Prefs.POSITION_TOP ? Gravity.TOP
+                : position == Prefs.POSITION_BOTTOM ? Gravity.BOTTOM
+                : Gravity.CENTER_VERTICAL) | Gravity.START;
         params.x = 0;
         params.y = 0;
         params.setTitle("PulseWave visualizer");
@@ -675,10 +691,19 @@ public class OverlayService extends Service {
             if (candidate.setCaptureSize(captureSize) != Visualizer.SUCCESS) {
                 throw new IllegalStateException("Visualizer capture size setup failed");
             }
-            if (candidate.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED)
-                    != Visualizer.SUCCESS) {
-                throw new IllegalStateException("Visualizer scaling setup failed");
+            boolean preferredAsPlayed = Prefs.asPlayed(this);
+            int scaling = preferredAsPlayed ? Visualizer.SCALING_MODE_AS_PLAYED
+                    : Visualizer.SCALING_MODE_NORMALIZED;
+            int scalingResult = candidate.setScalingMode(scaling);
+            if (scalingResult != Visualizer.SUCCESS) {
+                if (scaling == Visualizer.SCALING_MODE_NORMALIZED
+                        || candidate.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED)
+                            != Visualizer.SUCCESS) {
+                    throw new IllegalStateException("Visualizer scaling setup failed");
+                }
+                preferredAsPlayed = false;
             }
+            captureAsPlayed = preferredAsPlayed;
             fftSpectrum = new float[captureSize / 2];
             int rate = Math.max(1, Visualizer.getMaxCaptureRate());
             final Visualizer callbackVisualizer = candidate;
