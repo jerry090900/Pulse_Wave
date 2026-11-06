@@ -56,6 +56,11 @@ jobs:
                   if not found:
                       raise SystemExit("Required class missing: " + cls)
           PY
+      - name: Report public APK signing certificate for update diagnosis
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs \
+            app/build/outputs/apk/debug/app-debug.apk \
+            | grep -E 'Signer #1 certificate SHA-256 digest:'
       - uses: actions/upload-artifact@v4
         with:
           name: PulseWave-debug-apk
