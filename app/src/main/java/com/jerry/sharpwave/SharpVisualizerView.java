@@ -57,6 +57,10 @@ public class SharpVisualizerView extends View {
     private boolean studioTwoTone = true;
     private int studioPrimary = 0xFFFFFFFF;
     private int studioAccent = 0xFF9F000E;
+    private int studioThird = 0xFF19CFFA;
+    private int studioColorMode = StudioPreset.COLOR_TWO;
+    private int studioFlowStrength = 80;
+    private final MusicColorFlow musicColorFlow = new MusicColorFlow();
     private boolean centerBass = true;
     private boolean solidBars = true;
     private int bassGain = 160;
@@ -91,12 +95,18 @@ public class SharpVisualizerView extends View {
             studioMode = StudioPreset.BARS;
             studioColorsActive = false;
             studioTwoTone = true;
+            studioColorMode = StudioPreset.COLOR_TWO;
+            musicColorFlow.reset();
         } else {
             studioMode = scene.type;
             studioColorsActive = true;
             studioTwoTone = scene.twoTone;
             studioPrimary = scene.primary;
             studioAccent = scene.accent;
+            studioThird = scene.third;
+            studioColorMode = scene.effectiveColorMode();
+            studioFlowStrength = scene.flowStrength;
+            musicColorFlow.reset();
         }
         invalidate();
     }
@@ -284,8 +294,11 @@ public class SharpVisualizerView extends View {
             float tau = target > smoothed[i] ? ATTACK_TAU_SECONDS : RELEASE_TAU_SECONDS;
             smoothed[i] = smoothLevel(smoothed[i], target, elapsed, tau * 1000f);
         }
-        boolean twoTone = StudioAudioRenderer.useTwoColors(
-                studioColorsActive, studioTwoTone, solidBars);
+        int colorMode = studioColorsActive ? studioColorMode
+                : StudioAudioRenderer.useTwoColors(false, studioTwoTone, solidBars)
+                        ? StudioPreset.COLOR_TWO : StudioPreset.COLOR_SOLID;
+        float colorPhase = colorMode == StudioPreset.COLOR_MUSIC_FLOW
+                ? musicColorFlow.update(smoothed, now, studioFlowStrength) : 0f;
         int primary = studioColorsActive
                 ? studioPrimary : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0];
         int accent = studioColorsActive
@@ -294,7 +307,7 @@ public class SharpVisualizerView extends View {
                 Math.max(1f, dp(spikeWidthDp)), Math.max(0f, dp(gapDp)),
                 getResources().getDisplayMetrics().density, smoothed,
                 studioColorsActive ? studioMode : StudioPreset.BARS,
-                primary, accent, twoTone);
+                primary, accent, studioThird, colorMode, colorPhase);
     }
 
     private void ensureRenderArrays(int count) {
