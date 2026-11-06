@@ -46,6 +46,16 @@ The Android notification-access permission is broad and technically allows acces
 
 **Important:** Successful unit tests/CI compilation are not the same as proving real music synchronization, notification-access behavior, Bluetooth audio capture, or lock-screen visibility on the Nothing Phone. Keep this branch separate from main until device QA.
 
+## Studio Preview = Apply alignment (November 6 QA)
+
+The audio visualizer now uses **one shared renderer** for Studio and the real overlay. Bars, spikes and the FFT-responsive **Wave** share the same geometry, thickness, baseline and per-preset colors. Studio feeds this renderer **synthetic demo levels**, while the real overlay continues using its existing Android Visualizer FFT input, smoothing and callback timing. The user-approved new-video wave synchronization and middle-of-screen positioning are deliberately **unchanged**.
+
+**Two-color** (primary + accent) is the default for new and existing audio Studio designs missing the saved option, regardless of the separate legacy solid-color switch. Each Studio design can optionally use one solid color. Previously saved Studio scenes and photo choices are preserved. The original DHH Signature also defaults to dual white/red for users who have not explicitly selected solid bars.
+
+**Limitations:** demo beats are not the user's actual live audio; shapes, thickness and colors match but instantaneous peak heights depend on the music. This PR also adds a **Check last lock-screen attempt** control; it reports observed launch status or exception class instead of claiming system keyguard compatibility. It does not enable full Doze/AOD drawing or unlock-screen fingerprint integration.
+
+The update remains a draft test candidate. Real-device listening and screen-on lock tests are still required, as is verifying signing certificate continuity before installing over an existing APK.
+
 ## Permissions
 
 PulseWave asks for three user-facing permissions:
