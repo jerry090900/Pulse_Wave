@@ -55,7 +55,9 @@ final class StudioStore {
         } catch (Exception ignored) {
             return defaults(); // Damaged settings should never crash app startup.
         }
-        return results.isEmpty() ? defaults() : results;
+        if (results.isEmpty()) return defaults();
+        addFlowStarter(results);
+        return results;
     }
 
     static StudioPreset activeAudio(Context context) {
@@ -139,6 +141,26 @@ final class StudioStore {
         edit.apply();
     }
 
+    private static StudioPreset flowStarter() {
+        StudioPreset flow = StudioPreset.template("pw_music_flow",
+                "Prismatic Music Flow", StudioPreset.WAVE);
+        flow.primary = 0xFFF5F6FE;
+        flow.accent = 0xFF9F000E;
+        flow.third = 0xFF19CFFA;
+        flow.setColorMode(StudioPreset.COLOR_MUSIC_FLOW);
+        flow.flowStrength = 80;
+        flow.width = 5;
+        return flow;
+    }
+
+    private static void addFlowStarter(List<StudioPreset> list) {
+        if (list.size() >= MAX_PRESETS) return;
+        for (StudioPreset item : list) {
+            if ("pw_music_flow".equals(item.id)) return;
+        }
+        list.add(flowStarter());
+    }
+
     private static List<StudioPreset> defaults() {
         List<StudioPreset> presets = new ArrayList<>();
         presets.add(StudioPreset.template("pw_signature", "PulseWave Signature", StudioPreset.BARS));
@@ -158,6 +180,7 @@ final class StudioStore {
         presets.add(wave);
         presets.add(StudioPreset.template("pw_photo", "My Photo Clock", StudioPreset.PHOTO));
         presets.add(StudioPreset.template("pw_ring", "Fingerprint Halo", StudioPreset.RING));
+        presets.add(flowStarter());
         return presets;
     }
 }
