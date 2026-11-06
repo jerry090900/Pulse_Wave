@@ -2,9 +2,9 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "preview/updateable" ]
   pull_request:
-    branches: [ "main", "fix/ci-portable-aapt2-20261106", "feature/studio-gallery-editor-mvp-20261106", "fix/centered-bass-sync-lockscreen-20261106", "feature/one-signature-media-access-20261106", "fix/studio-overlay-visibility-20261106", "fix/preview-parity-preserve-wave-20261106", "feature/three-color-music-flow-20261106" ]
+    branches: [ "main", "fix/ci-portable-aapt2-20261106", "feature/studio-gallery-editor-mvp-20261106", "fix/centered-bass-sync-lockscreen-20261106", "feature/one-signature-media-access-20261106", "fix/studio-overlay-visibility-20261106", "fix/preview-parity-preserve-wave-20261106", "feature/three-color-music-flow-20261106", "fix/legacy-downward-three-color-preview-20261106", "preview/updateable" ]
   workflow_dispatch:
 
 jobs:
@@ -23,13 +23,42 @@ jobs:
           gradle-version: '9.6.0'
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
-      - name: Build debug APK
+      # PR builds run regression tests without access to the permanent signing key.
+      # Publish an installable Preview only from this owner's trusted branch.
+      - name: Build CI-only debug APK (not for installation)
+        if: github.event_name != 'push' || github.ref != 'refs/heads/preview/updateable'
+        run: gradle :app:assembleDebug --stacktrace
+      - name: Assign increasing versionCode for updateable Preview
+        if: github.event_name == 'push' && github.ref == 'refs/heads/preview/updateable'
+        run: |
+          echo "PW_PREVIEW_VERSION_CODE=$((10000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+      - name: Restore permanent Preview keystore (trusted branch only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/preview/updateable'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PW_PREVIEW_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Missing PW_PREVIEW_KEYSTORE_BASE64. Do not publish throwaway-signed APKs."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/pulsewave-preview-signing.jks"
+          test -s "$RUNNER_TEMP/pulsewave-preview-signing.jks"
+      - name: Build persistently signed updateable Preview APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/preview/updateable'
+        env:
+          PW_REQUIRE_STABLE_SIGNING: 'true'
+          PW_PREVIEW_KEYSTORE_FILE: ${{ runner.temp }}/pulsewave-preview-signing.jks
+          PW_PREVIEW_STORE_PASSWORD: ${{ secrets.PW_PREVIEW_STORE_PASSWORD }}
+          PW_PREVIEW_KEY_ALIAS: ${{ secrets.PW_PREVIEW_KEY_ALIAS }}
+          PW_PREVIEW_KEY_PASSWORD: ${{ secrets.PW_PREVIEW_KEY_PASSWORD }}
         run: gradle :app:assembleDebug --stacktrace
       - name: Verify this APK cannot replace installed PulseWave
         run: |
           "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging app/build/outputs/apk/debug/app-debug.apk | tee /tmp/pulsewave-preview-badging.txt
           grep -q "name='com.jerry.sharpwave.preview'" /tmp/pulsewave-preview-badging.txt
-          grep -q "versionCode='6'" /tmp/pulsewave-preview-badging.txt
+          grep -q "versionCode='${PW_PREVIEW_VERSION_CODE:-7}'" /tmp/pulsewave-preview-badging.txt
           grep -q "application-label:'PulseWave Preview'" /tmp/pulsewave-preview-badging.txt
       - name: Verify built APK size and Studio classes
         run: |
@@ -62,12 +91,28 @@ jobs:
                   if not found:
                       raise SystemExit("Required class missing: " + cls)
           PY
-      - name: Report public APK signing certificate for update diagnosis
+      - name: Verify pinned permanent signing certificate before publishing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/preview/updateable'
+        env:
+          EXPECTED_PREVIEW_SHA256: ${{ vars.PW_PREVIEW_CERT_SHA256 }}
         run: |
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs \
+          set -euo pipefail
+          if [ -z "$EXPECTED_PREVIEW_SHA256" ]; then
+            echo "::error::Missing PW_PREVIEW_CERT_SHA256 repository variable; refusing to distribute."
+            exit 1
+          fi
+          ACTUAL=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs \
             app/build/outputs/apk/debug/app-debug.apk \
-            | grep -E 'Signer #1 certificate SHA-256 digest:'
-      - uses: actions/upload-artifact@v4
+            | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          if [ -z "$ACTUAL" ] || [ "${ACTUAL,,}" != "${EXPECTED_PREVIEW_SHA256,,}" ]; then
+            echo "::error::Unexpected Preview signing certificate. Refusing to distribute an unupdateable APK."
+            exit 1
+          fi
+          echo "Persistent Preview signer verified: $ACTUAL"
+      - name: Upload updateable Preview APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/preview/updateable'
+        uses: actions/upload-artifact@v4
         with:
-          name: PulseWave-Preview-debug-apk
+          name: PulseWave-Preview-UPDATEABLE-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
