@@ -56,6 +56,19 @@ The audio visualizer now uses **one shared renderer** for Studio and the real ov
 
 The update remains a draft test candidate. Real-device listening and screen-on lock tests are still required, as is verifying signing certificate continuity before installing over an existing APK.
 
+## Three colors and Music Color Flow (Studio)
+
+From **PulseWave Studio → Edit** any audio design:
+
+- Choose **One color**, **Two colors (classic)**, **Three colors**, or **Music Color Flow • 3 colors**.
+- The three swatches are **Color 1 (left), Color 2 (middle), Color 3 (right)**. Tap each color to edit Hue/Saturation/Brightness or enter `#RRGGBB` exactly. A picker change updates Studio's preview immediately; Cancel restores the previous color.
+- In static three-color mode, the chosen colors blend across individual spectrum lines (first → middle → third). In **Music Color Flow**, those same three colors shift smoothly across lines according to audio energy and rising beats. The **Music flow strength** slider adjusts movement; **0** freezes it.
+- This uses the existing FFT-driven visualizer and **does not modify audio capture, smoothing, screen position or the middle-positioned synchronized Wave**. No new microphone, network, notification or album-art permission is needed.
+- A new **Prismatic Music Flow** starter preset is added non-destructively, even for an existing saved preset library with space available. Old presets retain original solid/two-color choices; all custom presets and photo URIs are kept.
+- Studio uses **simulated music data** with the **same renderer**. The real overlay uses the actual capture. Colors and shapes match; beat timing in preview is not a recording of the music you're listening to.
+
+**Unverified on device:** Smoothness at the target phone's display refresh rate, perceived response with Bluetooth, and AOD/secure lock-screen behavior. GitHub tests verify logical contracts and APK build only; use a matching Android signing certificate for update-over-install. The system AOD and hardware fingerprint unlock animations are not changed.
+
 ## Permissions
 
 PulseWave asks for three user-facing permissions:

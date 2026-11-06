@@ -26,6 +26,7 @@ final class StudioPreviewView extends View {
     private Bitmap photo;
     private String loadedUri = "";
     private boolean animated;
+    private final MusicColorFlow demoColorFlow = new MusicColorFlow();
 
     StudioPreviewView(Context context) {
         super(context);
@@ -34,6 +35,8 @@ final class StudioPreviewView extends View {
     }
 
     void setScene(StudioPreset newPreset) {
+        if (preset.type != newPreset.type || preset.effectiveColorMode()
+                != newPreset.effectiveColorMode()) demoColorFlow.reset();
         preset = newPreset.copy();
         preset.normalize();
         if (!loadedUri.equals(preset.photoUri)) loadPhoto(preset.photoUri);
@@ -118,10 +121,14 @@ final class StudioPreviewView extends View {
         }
         int save = canvas.save();
         canvas.translate(0, y);
+        int colorMode = preset.effectiveColorMode();
+        float colorPhase = colorMode == StudioPreset.COLOR_MUSIC_FLOW && animated
+                ? demoColorFlow.update(levels, SystemClock.uptimeMillis(),
+                        preset.flowStrength) : 0f;
         StudioAudioRenderer.draw(canvas, paint, path, width, bandHeight,
                 widthPx, gapPx, getResources().getDisplayMetrics().density,
                 levels, preset.type, alphaColor(preset.primary),
-                alphaColor(preset.accent), preset.twoTone);
+                alphaColor(preset.accent), alphaColor(preset.third), colorMode, colorPhase);
         canvas.restoreToCount(save);
     }
 

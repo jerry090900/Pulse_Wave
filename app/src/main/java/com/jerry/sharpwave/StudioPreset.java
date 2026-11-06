@@ -15,6 +15,10 @@ final class StudioPreset {
     int type;
     int primary = 0xFFFFFFFF;
     int accent = 0xFF9F000E;
+    int third = 0xFF19CFFA;
+    // -1 preserves original one/two-color presets on upgrades.
+    int colorMode = -1;
+    int flowStrength = 80;
     int width = 5;
     int gap = 1;
     int height = 92;
@@ -40,6 +44,9 @@ final class StudioPreset {
         p.type = type;
         p.primary = primary;
         p.accent = accent;
+        p.third = third;
+        p.colorMode = colorMode;
+        p.flowStrength = flowStrength;
         p.width = width;
         p.gap = gap;
         p.height = height;
@@ -57,6 +64,21 @@ final class StudioPreset {
         p.id = UUID.randomUUID().toString();
         p.name = safeName(name + " copy");
         return p;
+    }
+
+    static final int COLOR_SOLID = 0;
+    static final int COLOR_TWO = 1;
+    static final int COLOR_THREE = 2;
+    static final int COLOR_MUSIC_FLOW = 3;
+
+    int effectiveColorMode() {
+        return colorMode < 0 ? (twoTone ? COLOR_TWO : COLOR_SOLID)
+                : clamp(colorMode, COLOR_SOLID, COLOR_MUSIC_FLOW);
+    }
+
+    void setColorMode(int mode) {
+        colorMode = clamp(mode, COLOR_SOLID, COLOR_MUSIC_FLOW);
+        twoTone = colorMode != COLOR_SOLID; // Compatibility with previous presets.
     }
 
     boolean isAudio() {
@@ -87,11 +109,14 @@ final class StudioPreset {
         ringSize = clamp(ringSize, 50, 220);
         offsetY = clamp(offsetY, 15, 90);
         opacity = clamp(opacity, 15, 100);
+        flowStrength = clamp(flowStrength, 0, 100);
+        if (colorMode >= 0) setColorMode(colorMode);
         if (photoUri == null || photoUri.length() > 2048 || !photoUri.startsWith("content://")) {
             photoUri = "";
         }
         primary |= 0xFF000000;
         accent |= 0xFF000000;
+        third |= 0xFF000000;
     }
 
     static int clamp(int value, int min, int max) {

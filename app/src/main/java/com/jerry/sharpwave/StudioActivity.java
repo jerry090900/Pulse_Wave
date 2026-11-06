@@ -12,6 +12,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -35,6 +37,10 @@ public final class StudioActivity extends Activity {
     private StudioPreset editing;
     private StudioPreviewView preview;
     private EditText nameField;
+    private final Button[] colorSwatches = new Button[3];
+    private static final String[] COLOR_LABELS = {
+            "Color 1 • Left", "Color 2 • Middle", "Color 3 • Right"
+    };
 
     @Override
     protected void onResume() {
@@ -88,6 +94,7 @@ public final class StudioActivity extends Activity {
         editing = null;
         preview = null;
         nameField = null;
+        for (int i = 0; i < colorSwatches.length; i++) colorSwatches[i] = null;
         LinearLayout content = contents(page("PulseWave Studio",
                 "Choose a design, edit it, preview it, then save and apply. No proprietary styles copied.", false));
         info(content, "AUDIO VISUALIZERS • PHOTO CLOCKS • FINGERPRINT FX");
@@ -155,18 +162,36 @@ public final class StudioActivity extends Activity {
             slider(content, "Sensitivity", 60, 260, editing.sensitivity, value -> {
                 editing.sensitivity = value; updatePreview();
             });
-            Switch twoColors = new Switch(this);
-            twoColors.setText("Two-color effect (primary + accent)");
-            twoColors.setTextColor(TEXT);
-            twoColors.setTextSize(14);
-            twoColors.setChecked(editing.twoTone);
-            twoColors.setOnCheckedChangeListener((buttonView, checked) -> {
-                editing.twoTone = checked;
+            info(content, "LINE COLORS");
+            RadioGroup colorModes = new RadioGroup(this);
+            String[] labels = {
+                    "One color", "Two colors (classic)", "Three colors",
+                    "Music Color Flow • 3 colors"
+            };
+            for (int i = 0; i < labels.length; i++) {
+                RadioButton option = new RadioButton(this);
+                option.setId(7300 + i);
+                option.setText(labels[i]);
+                option.setTextColor(TEXT);
+                option.setTextSize(14);
+                colorModes.addView(option);
+                if (editing.effectiveColorMode() == i) option.setChecked(true);
+            }
+            colorModes.setOnCheckedChangeListener((group, id) -> {
+                editing.setColorMode(id - 7300);
                 updatePreview();
             });
-            content.addView(twoColors, match(8, 10));
-            info(content, "The demo uses the same bars, spikes and wave renderer as the overlay. "
-                    + "Only the sample audio data is simulated.");
+            content.addView(colorModes, match(0, 10));
+            info(content, "Tap a color to edit its hue, saturation, brightness or exact HEX.");
+            swatch(content, "Color 1 • Left", 0);
+            swatch(content, "Color 2 • Middle", 1);
+            swatch(content, "Color 3 • Right", 2);
+            slider(content, "Music flow strength", 0, 100, editing.flowStrength, value -> {
+                editing.flowStrength = value; updatePreview();
+            });
+            info(content, "Music Color Flow rotates your chosen colors across the lines "
+                    + "on captured beats; it pauses during silence. "
+                    + "The demo uses synthesized music, not captured audio.");
         } else if (editing.type == StudioPreset.PHOTO) {
             Button choose = button("Choose a photo", true);
             choose.setOnClickListener(v -> choosePhoto());
@@ -190,10 +215,10 @@ public final class StudioActivity extends Activity {
 
         if (editing.type != StudioPreset.PHOTO) {
             info(content, "COLOR PRESETS");
-            palette(content, "White + deep red", 0xFFFFFFFF, 0xFF9F000E);
-            palette(content, "Icy blue", 0xFFDDF6FF, 0xFF236DDE);
-            palette(content, "Amber glow", 0xFFFFE5AA, 0xFFE78322);
-            palette(content, "Magenta", 0xFFFFD7EF, 0xFFC20F79);
+            palette(content, "White / Red / Cyan", 0xFFFFFFFF, 0xFF9F000E, 0xFF19CFFA);
+            palette(content, "Ice / Blue / Violet", 0xFFDDF6FF, 0xFF236DDE, 0xFFBA65FF);
+            palette(content, "Amber / Orange / Pink", 0xFFFFE5AA, 0xFFE78322, 0xFFE566AB);
+            palette(content, "Magenta / White / Teal", 0xFFFFD7EF, 0xFFFFFFFF, 0xFF09CCA8);
         }
         LinearLayout actions = row();
         Button save = button("Save", false);
@@ -216,14 +241,58 @@ public final class StudioActivity extends Activity {
         if (preview != null) preview.setScene(editing);
     }
 
-    private void palette(LinearLayout parent, String label, int primary, int accent) {
+    private void palette(LinearLayout parent, String label,
+            int primary, int accent, int third) {
         Button choice = button(label, false);
         choice.setOnClickListener(v -> {
             editing.primary = primary;
             editing.accent = accent;
+            editing.third = third;
             updatePreview();
+            refreshSwatches();
+            Toast.makeText(this, "Palette updated", Toast.LENGTH_SHORT).show();
         });
         parent.addView(choice, match(0, 5));
+    }
+
+    private int swatchColor(int slot) {
+        if (slot == 0) return editing.primary;
+        if (slot == 1) return editing.accent;
+        return editing.third;
+    }
+
+    private void setSwatchColor(int slot, int color) {
+        if (slot == 0) editing.primary = color;
+        else if (slot == 1) editing.accent = color;
+        else editing.third = color;
+        updatePreview();
+    }
+
+    private void styleSwatch(Button button, String label, int color) {
+        button.setText(String.format(java.util.Locale.US, "%s      #%06X",
+                label, color & 0xFFFFFF));
+        button.setTextColor(Color.luminance(color) < .42 ? Color.WHITE : Color.BLACK);
+        button.setBackground(tint(color, 13));
+    }
+
+    private void refreshSwatches() {
+        for (int i = 0; i < colorSwatches.length; i++) {
+            if (colorSwatches[i] != null) {
+                styleSwatch(colorSwatches[i], COLOR_LABELS[i], swatchColor(i));
+            }
+        }
+    }
+
+    private void swatch(LinearLayout parent, String label, int slot) {
+        Button swatch = button(label, false);
+        colorSwatches[slot] = swatch;
+        styleSwatch(swatch, label, swatchColor(slot));
+        swatch.setOnClickListener(v -> StudioColorPicker.show(this, label,
+                swatchColor(slot), color -> {
+                    setSwatchColor(slot, color);
+                    styleSwatch(swatch, label, color);
+                }));
+        parent.addView(swatch, match(5, 5));
     }
 
     private boolean captureName() {
