@@ -2,7 +2,6 @@ package com.jerry.sharpwave;
 
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Shader;
@@ -67,18 +66,31 @@ final class StudioAudioRenderer {
         return downward ? size : height;
     }
 
-    /** A three-color gradient inside EACH bar, rather than one color per bar. */
-    static int[] verticalStops(int first, int middle, int third,
-            int colorMode, float phase) {
-        if (colorMode == StudioPreset.COLOR_THREE) {
-            return new int[]{first, middle, third};
-        }
-        int[] colors = new int[7];
+    /**
+     * Horizontal spectrum colors, as in the reference video: distinct colors
+     * travel ACROSS adjacent lines, not the same white/red/cyan stripes
+     * repeated vertically on every line.
+     *
+     * A short, shifted cap is added at each bar's moving endpoint. The cap
+     * travels with that endpoint, so it never forms a fixed horizontal stripe.
+     */
+    static int[] spectrumStops(int first, int middle, int third,
+            int colorMode, float phase, float capShift) {
+        int count = colorMode == StudioPreset.COLOR_THREE ? 5 : 13;
+        int[] colors = new int[count];
         for (int i = 0; i < colors.length; i++) {
-            colors[i] = colorForLine(i / (float) (colors.length - 1),
-                    first, middle, third, colorMode, phase);
+            float x = i / (float) (count - 1);
+            float shifted = colorMode == StudioPreset.COLOR_MUSIC_FLOW
+                    ? MusicColorFlow.wrap(x + capShift)
+                    : Math.min(1f, Math.max(0f, x + capShift));
+            colors[i] = colorForLine(shifted, first, middle, third,
+                    colorMode, phase);
         }
         return colors;
+    }
+
+    static float endpointCapHeight(float barHeight, float density) {
+        return Math.min(Math.max(0f, barHeight) * .18f, Math.max(2f, density * 6f));
     }
 
     /**
@@ -107,14 +119,18 @@ final class StudioAudioRenderer {
         boolean twoTone = colorMode == StudioPreset.COLOR_TWO;
         boolean multiColor = colorMode == StudioPreset.COLOR_THREE
                 || colorMode == StudioPreset.COLOR_MUSIC_FLOW;
-        // Allocate one shader per rendered frame, not per FFT band.
-        LinearGradient barGradient = null;
-        Matrix gradientMatrix = null;
+        // One global horizontal gradient for the whole spectrum. It creates
+        // evolving color clusters across lines rather than three fixed bands.
+        // Two shaders total per frame, never one allocated per FFT band.
+        LinearGradient spectrumGradient = null;
+        LinearGradient tipGradient = null;
         if (mode == StudioPreset.BARS && multiColor) {
-            barGradient = new LinearGradient(0f, 0f, 0f, 1f,
-                    verticalStops(primary, accent, third, colorMode, flowPhase),
+            spectrumGradient = new LinearGradient(0f, 0f, Math.max(1, width), 0f,
+                    spectrumStops(primary, accent, third, colorMode, flowPhase, 0f),
                     null, Shader.TileMode.CLAMP);
-            gradientMatrix = new Matrix();
+            tipGradient = new LinearGradient(0f, 0f, Math.max(1, width), 0f,
+                    spectrumStops(primary, accent, third, colorMode,
+                            flowPhase, .15f), null, Shader.TileMode.CLAMP);
         }
         path.reset();
         for (int i = 0; i < count; i++) {
@@ -170,16 +186,19 @@ final class StudioAudioRenderer {
                 canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
                 canvas.restoreToCount(saved);
                 paint.setAntiAlias(antialias);
-            } else if (barGradient != null) {
+            } else if (spectrumGradient != null) {
                 if (barHeight <= 0f) continue;
-                // The shared gradient stretches to the individual bar height:
-                // even short bars contain all three colors in one line.
-                gradientMatrix.setScale(1f, barHeight);
-                gradientMatrix.postTranslate(0f, top);
-                barGradient.setLocalMatrix(gradientMatrix);
                 paint.setColor(0xFFFFFFFF);
-                paint.setShader(barGradient);
+                paint.setShader(spectrumGradient);
                 canvas.drawRect(left, top, right, bottom, paint);
+                // Small contrasting endpoints, like the colored tips in Muviz.
+                // Their vertical position follows each bar's own peak and cannot
+                // create static white/red/cyan horizontal bands.
+                float cap = endpointCapHeight(barHeight, density);
+                float capTop = down ? bottom - cap : top;
+                float capBottom = down ? bottom : top + cap;
+                paint.setShader(tipGradient);
+                canvas.drawRect(left, capTop, right, capBottom, paint);
                 paint.setShader(null);
             } else {
                 paint.setColor(lineColor);
