@@ -52,6 +52,23 @@ public class OverlayService extends Service {
     private static final long VISUALIZER_CALLBACK_STALL_TIMEOUT_MS = 3L * POLL_INTERVAL_MS;
     private static volatile boolean running;
     private static volatile OverlayService activeInstance;
+    private static volatile boolean appUiVisible;
+
+    /** Activity lifecycle signal; keeps the audio capture running, hides only overlay artwork. */
+    static void setAppUiVisible(boolean visible) {
+        appUiVisible = visible;
+        OverlayService instance = activeInstance;
+        if (instance != null && !instance.destroyed) {
+            instance.handler.post(() -> {
+                if (!instance.destroyed) instance.updateOverlayState();
+            });
+        }
+    }
+
+    static boolean shouldHideOverlayInApp(boolean uiVisible, boolean locked,
+            boolean explicitPreview) {
+        return uiVisible && !locked && !explicitPreview;
+    }
 
     public static boolean isRunning() {
         return running;
@@ -560,6 +577,16 @@ public class OverlayService extends Service {
             } else {
                 updateNotification("Waiting for a selected music app");
             }
+            return;
+        }
+
+        // Do not draw over PulseWave's own Gallery/Editor and settings.
+        // An explicitly requested five-second test preview remains visible.
+        if (shouldHideOverlayInApp(appUiVisible, keyguardLocked, previewActive)) {
+            closeLockScreenHost();
+            hideOverlay();
+            stopPreviewTicker();
+            if (active) updateNotification("Audio running — overlay hidden inside PulseWave");
             return;
         }
 
