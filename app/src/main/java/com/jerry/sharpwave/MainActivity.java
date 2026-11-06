@@ -228,6 +228,47 @@ public class MainActivity extends Activity {
         controls.addView(palette, matchParams(4, 0));
         addBlock(root, controls, 0, 24);
 
+        section(root, "POSITION & AUDIO RESPONSE",
+                "Center the visualizer and make louder bass hits produce taller bars.");
+        LinearLayout motionPanel = panel();
+        motionPanel.addView(text("Screen position", 15, color(R.color.text)),
+                matchParams(0, 6));
+        RadioGroup positions = new RadioGroup(this);
+        String[] positionLabels = {"Top", "Middle (recommended)", "Bottom"};
+        int selectedPosition = Prefs.overlayPosition(this);
+        for (int index = 0; index < positionLabels.length; index++) {
+            RadioButton rb = new RadioButton(this);
+            rb.setText(positionLabels[index]);
+            rb.setTextColor(color(R.color.text_secondary));
+            rb.setButtonTintList(radioTint());
+            rb.setId(6000 + index);
+            positions.addView(rb);
+            if (index == selectedPosition) rb.setChecked(true);
+        }
+        positions.setOnCheckedChangeListener((group, id) -> {
+            Prefs.get(this).edit().putInt(Prefs.KEY_OVERLAY_POSITION,
+                    Math.max(Prefs.POSITION_TOP, id - 6000)).apply();
+            refreshService();
+        });
+        motionPanel.addView(positions, matchParams(0, 13));
+        addMotionToggle(motionPanel, "Center the bass",
+                "Low frequencies peak in the center; higher notes spread to both edges.",
+                Prefs.KEY_CENTER_BASS, Prefs.centeredBass(this));
+        addDivider(motionPanel);
+        addMotionToggle(motionPanel, "Solid-color bars",
+                "Each bar uses one solid color instead of stacked red and white.",
+                Prefs.KEY_SINGLE_COLOR, Prefs.singleColorBars(this));
+        addDivider(motionPanel);
+        addMotionToggle(motionPanel, "Follow playback loudness",
+                "Uses Android's as-played output signal. Switch off if Bluetooth output is too weak.",
+                Prefs.KEY_AS_PLAYED, Prefs.asPlayed(this));
+        addDivider(motionPanel);
+        addSlider(motionPanel, "Bass response (%)", Prefs.KEY_BASS_GAIN, 100, 240,
+                Prefs.bassGain(this));
+        motionPanel.addView(text("Signal comes from Android's output-mix Visualizer, not the music app's private audio session. Some devices cannot provide an accurate mix.",
+                12, color(R.color.text_secondary)), matchParams(8, 0));
+        addBlock(root, motionPanel, 0, 24);
+
         section(root, "EXPERIMENTAL LOCK SCREEN", "Screen-on keyguard support varies by Android device.");
         LinearLayout lockPanel = panel();
         LinearLayout lockHeading = horizontalRow();
@@ -254,7 +295,7 @@ public class MainActivity extends Activity {
         });
         lockScreenStatus = statusText();
         lockPanel.addView(lockScreenStatus, matchParams(14, 0));
-        TextView lockNote = text("Android does not allow a normal app to draw on a real always-on display while the panel is off. PulseWave falls back to the normal overlay if the host is blocked.",
+        TextView lockNote = text("Screen-on only. Android may hide overlays or block background launches on a secure lock screen. PulseWave cannot replace the actual lock screen, fingerprint animation, or display-off AOD.",
                 13, color(R.color.text_secondary));
         lockPanel.addView(lockNote, matchParams(8, 0));
         addBlock(root, lockPanel, 0, 24);
@@ -298,6 +339,28 @@ public class MainActivity extends Activity {
         panel.addView(action, matchParams(8, 0, 48));
     }
 
+    private void addMotionToggle(LinearLayout parent, String title, String details,
+            String key, boolean current) {
+        LinearLayout line = horizontalRow();
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.addView(text(title, 15, color(R.color.text)), matchParams(0, 0));
+        copy.addView(text(details, 12, color(R.color.text_secondary)), matchParams(4, 0));
+        line.addView(copy, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Switch toggle = new Switch(this);
+        toggle.setShowText(false);
+        toggle.setThumbTintList(switchThumbTint());
+        toggle.setTrackTintList(switchTrackTint());
+        toggle.setChecked(current);
+        line.addView(toggle, wrapParams());
+        toggle.setOnCheckedChangeListener((buttonView, value) -> {
+            Prefs.get(this).edit().putBoolean(key, value).apply();
+            refreshService();
+        });
+        parent.addView(line, matchParams(6, 10));
+    }
+
     private void addSlider(LinearLayout panel, String title, String key,
             int min, int max, int current) {
         LinearLayout row = horizontalRow();
@@ -321,7 +384,9 @@ public class MainActivity extends Activity {
                 valueLabel.setText(String.valueOf(value));
                 if (fromUser) {
                     Prefs.get(MainActivity.this).edit().putInt(key, value).apply();
-                    StudioStore.clearAppliedAudio(MainActivity.this);
+                    if (!Prefs.KEY_BASS_GAIN.equals(key)) {
+                        StudioStore.clearAppliedAudio(MainActivity.this);
+                    }
                 }
             }
 
@@ -333,6 +398,7 @@ public class MainActivity extends Activity {
     }
 
     private void refreshService() {
+        if (!OverlayService.isRunning()) return;
         try {
             Intent i = new Intent(this, OverlayService.class).setAction(OverlayService.ACTION_REFRESH);
             startService(i);
