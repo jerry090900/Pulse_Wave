@@ -27,16 +27,7 @@ public class SharpVisualizerView extends View {
     private static final float TWO_TONE_MIN_SEGMENT_PX = 1f;
 
     private static final int[][] PALETTES = {
-            {0xFFFFFFFF, 0xFF9F000E, 0xFFB8B8B8},
-            {0xFFF4F4F4, 0xFF6E0B14, 0xFF8E8E8E},
-            {0xFFEDEDED, 0xFF8B000C, 0xFF666666},
-            {0xFFF8F8F8, 0xFFB00012, 0xFF4A4A4A},
-            {0xFFFFFFFF, 0xFFBFC5CC, 0xFF7F8B99},
-            {0xFFE8E8E8, 0xFF7D0B16, 0xFF7B7B7B},
-            {0xFFF7F7F7, 0xFFA3001B, 0xFFB5B8BD},
-            {0xFFFFFFFF, 0xFF9F000E, 0xFF9A9A9A},
-            {0xFFCFCFCF, 0xFF640912, 0xFF555555},
-            {0xFFE5E7EA, 0xFF721521, 0xFF727A84}
+            {0xFFFFFFFF, 0xFF9F000E, 0xFFB8B8B8}
     };
     private static final int NOTHING_MINIMAL_BODY = 0xFFD7D7D7;
 
