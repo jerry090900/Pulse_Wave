@@ -332,6 +332,10 @@ public class MainActivity extends Activity {
         });
         lockScreenStatus = statusText();
         lockPanel.addView(lockScreenStatus, matchParams(14, 0));
+        Button inspectLock = secondaryButton("Check last lock-screen attempt");
+        inspectLock.setOnClickListener(v -> Toast.makeText(this,
+                OverlayService.lockScreenDiagnostic(), Toast.LENGTH_LONG).show());
+        lockPanel.addView(inspectLock, matchParams(10, 0, 48));
         TextView lockNote = text("Screen-on only. Android may hide overlays or block background launches on a secure lock screen. PulseWave cannot replace the actual lock screen, fingerprint animation, or display-off AOD.",
                 13, color(R.color.text_secondary));
         lockPanel.addView(lockNote, matchParams(8, 0));
