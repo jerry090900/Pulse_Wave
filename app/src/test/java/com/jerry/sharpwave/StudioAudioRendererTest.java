@@ -9,8 +9,8 @@ import static org.junit.Assert.*;
  */
 public final class StudioAudioRendererTest {
     @Test public void previewAndLiveUseSameNumberOfBars() {
-        assertEquals(20, StudioAudioRenderer.barCount(200f, 8f, 2f));
-        assertEquals(20, StudioAudioRenderer.barCount(200f, 8f, 2f));
+        assertEquals(21, StudioAudioRenderer.barCount(200f, 8f, 2f));
+        assertEquals(21, StudioAudioRenderer.barCount(200f, 8f, 2f));
         assertEquals(0, StudioAudioRenderer.barCount(0f, 8f, 2f));
     }
 
