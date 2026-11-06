@@ -2,16 +2,53 @@ plugins {
     id 'com.android.application'
 }
 
+// A permanent Preview identity requires a stable, owner-protected signing key.
+// Without all four credentials, local/PR builds may compile with Android's throwaway
+// debug keystore, but CI must NEVER distribute those builds as updateable APKs.
+def previewStorePath = System.getenv('PW_PREVIEW_KEYSTORE_FILE')
+def previewStorePassword = System.getenv('PW_PREVIEW_STORE_PASSWORD')
+def previewKeyAlias = System.getenv('PW_PREVIEW_KEY_ALIAS')
+def previewKeyPassword = System.getenv('PW_PREVIEW_KEY_PASSWORD')
+def previewSigningFields = [previewStorePath, previewStorePassword,
+        previewKeyAlias, previewKeyPassword]
+def hasPreviewSigner = previewSigningFields.every { it != null && !it.isEmpty() }
+def requiresStablePreview = System.getenv('PW_REQUIRE_STABLE_SIGNING') == 'true'
+if (requiresStablePreview && !hasPreviewSigner) {
+    throw new GradleException('Stable Preview signing is required, but one or more signing secrets are missing')
+}
+if (hasPreviewSigner && !file(previewStorePath).isFile()) {
+    throw new GradleException('Stable Preview keystore file was not found')
+}
+def previewVersionCode = System.getenv('PW_PREVIEW_VERSION_CODE')
+if (previewVersionCode != null && !(previewVersionCode ==~ /[0-9]+/)) {
+    throw new GradleException('PW_PREVIEW_VERSION_CODE must be a positive integer')
+}
+def version = previewVersionCode ? previewVersionCode.toInteger() : 7
+if (version < 7 || version > 2100000000) {
+    throw new GradleException('Preview versionCode must be between 7 and 2100000000')
+}
+
 android {
     namespace 'com.jerry.sharpwave'
     compileSdk 36
+
+    signingConfigs {
+        persistentPreview {
+            if (hasPreviewSigner) {
+                storeFile file(previewStorePath)
+                storePassword previewStorePassword
+                keyAlias previewKeyAlias
+                keyPassword previewKeyPassword
+            }
+        }
+    }
 
     defaultConfig {
         applicationId 'com.jerry.sharpwave'
         minSdk 29
         targetSdk 36
-        versionCode 6
-        versionName '0.1.5'
+        versionCode version
+        versionName '0.1.6'
     }
 
     buildTypes {
@@ -19,6 +56,9 @@ android {
             // Only the temporary preview build uses a separate installation identity.
             applicationIdSuffix '.preview'
             versionNameSuffix '-preview'
+            if (hasPreviewSigner) {
+                signingConfig signingConfigs.persistentPreview
+            }
         }
         release {
             minifyEnabled false
