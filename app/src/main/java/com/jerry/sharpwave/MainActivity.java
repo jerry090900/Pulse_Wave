@@ -313,6 +313,10 @@ public class MainActivity extends Activity {
         Button testOverlay = secondaryButton("Preview overlay · 5 seconds");
         testOverlay.setOnClickListener(v -> testOverlay());
         servicePanel.addView(testOverlay, matchParams(10, 0, 52));
+        Button checkSignal = secondaryButton("Check live audio signal");
+        checkSignal.setOnClickListener(v ->
+                Toast.makeText(this, OverlayService.audioSignalStatus(), Toast.LENGTH_LONG).show());
+        servicePanel.addView(checkSignal, matchParams(10, 0, 52));
         Button stop = secondaryButton("Stop PulseWave");
         stop.setOnClickListener(v -> {
             Intent i = new Intent(this, OverlayService.class).setAction(OverlayService.ACTION_STOP);
@@ -473,8 +477,8 @@ public class MainActivity extends Activity {
         selectedCount.setText(selected.size() + (selected.size() == 1 ? " app selected" : " apps selected"));
 
         boolean lockScreen = Prefs.lockScreenEnabled(this);
-        lockScreenStatus.setText(lockScreen ? "EXPERIMENT ENABLED" : "EXPERIMENT DISABLED");
-        lockScreenStatus.setTextColor(lockScreen ? color(R.color.status_success) : color(R.color.text_secondary));
+        lockScreenStatus.setText(lockScreen ? "BEST EFFORT • NOT VERIFIED" : "EXPERIMENT DISABLED");
+        lockScreenStatus.setTextColor(lockScreen ? color(R.color.status_warning) : color(R.color.text_secondary));
     }
 
     private void section(LinearLayout root, String name, String description) {
