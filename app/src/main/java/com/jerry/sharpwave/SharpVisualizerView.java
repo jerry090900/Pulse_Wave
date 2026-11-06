@@ -118,12 +118,17 @@ public class SharpVisualizerView extends View {
         invalidate();
     }
 
+    /** Identical left/right FFT ordering with bass in the middle. */
     static int mirroredBandIndex(int i, int count) {
-        if (count <= 1) return 0;
-        int center = (count - 1) / 2;
-        int distance = Math.min(Math.abs(i - center), Math.abs(i - (count / 2)));
-        float maxDistance = Math.max(0.5f, (count - 1) * .5f);
-        return Math.min(count - 1, Math.round(distance / maxDistance * (count - 1)));
+        if (count <= 2) return 0;
+        int safe = Math.max(0, Math.min(count - 1, i));
+        float midpoint = (count - 1) * .5f;
+        float minimumDistance = count % 2 == 0 ? .5f : 0f;
+        float span = midpoint - minimumDistance;
+        if (span <= 0f) return 0;
+        float distance = Math.abs(safe - midpoint) - minimumDistance;
+        return Math.min(count - 1, Math.max(0,
+                Math.round(distance / span * (count - 1))));
     }
 
     static float waveformRms(byte[] data) {
