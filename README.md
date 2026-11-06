@@ -47,6 +47,18 @@ APK output:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Termux-specific AAPT2
+
+The shared `gradle.properties` intentionally does **not** reference a Termux filesystem path, because GitHub Actions uses an Ubuntu runner and must use its own AAPT2.
+
+If building directly inside Termux requires its local ARM64 `aapt2`, first verify that `$PREFIX/bin/aapt2` exists. Then supply that override **only for the local build**:
+
+```bash
+gradle -Pandroid.aapt2FromMavenOverride="$PREFIX/bin/aapt2" :app:assembleDebug
+```
+
+This Termux command is not used by the GitHub Actions workflow. Its success depends on the actual local Android SDK and AAPT2 installation.
+
 ## Experimental lock-screen mode (screen on only)
 
 PulseWave has an explicit **Experimental lock screen** setting. When it is enabled and a selected media app is active, the service:
