@@ -77,6 +77,17 @@ public class LockScreenActivity extends Activity {
         }
     }
 
+    static void applyPresentation(boolean centerBass, boolean singleColor,
+            int bassGainPercent) {
+        synchronized (INSTANCE_LOCK) {
+            LockScreenActivity activity = instance;
+            if (isUsableInstance(activity) && activity.visualizerView != null) {
+                activity.visualizerView.setPresentation(centerBass, singleColor,
+                        bassGainPercent);
+            }
+        }
+    }
+
     static void close() {
         LockScreenActivity activity;
         synchronized (INSTANCE_LOCK) {
@@ -110,6 +121,8 @@ public class LockScreenActivity extends Activity {
                 Prefs.sensitivity(this),
                 Prefs.palette(this));
         visualizerView.setStudioScene(StudioStore.activeAudio(this));
+        visualizerView.setPresentation(Prefs.centeredBass(this),
+                Prefs.singleColorBars(this), Prefs.bassGain(this));
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.TRANSPARENT);
@@ -117,7 +130,9 @@ public class LockScreenActivity extends Activity {
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 heightPx,
-                Gravity.TOP | Gravity.START);
+                (Prefs.overlayPosition(this) == Prefs.POSITION_TOP ? Gravity.TOP
+                        : Prefs.overlayPosition(this) == Prefs.POSITION_BOTTOM
+                            ? Gravity.BOTTOM : Gravity.CENTER_VERTICAL) | Gravity.START);
         root.addView(visualizerView, params);
         setContentView(root);
         overridePendingTransition(0, 0);

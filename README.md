@@ -24,6 +24,16 @@ Open **PulseWave Studio** on the home screen to browse original style presets, t
 
 Planned next milestones: draggable canvas elements, richer photo masks/layouts, preset import/export, opt-in media notification sessions, charging effects, sensor-driven rules, plus real-device power and lock-screen QA.
 
+## Screen-centered visualizer / audio-response test fix
+
+This candidate adds a **Position: Middle** default (with Top and Bottom choices), symmetric **bass-in-the-center** mapping, a consistent bottom baseline for the equalizer, **Solid-color bars**, and a tunable **Bass response** slider. The legacy two-tone style remains available by turning solid colors off.
+
+The **Follow playback loudness** toggle defaults to Android's `SCALING_MODE_AS_PLAYED` to preserve changes in volume. If Bluetooth or a player produces weak/empty output-mix data, switch it off to restore normalized capture. **Check live audio signal** reports whether Android has delivered any recent FFT peaks; it does not identify the source app or prove musical timing is correct.
+
+The experimental screen-on lock-screen host retains a previously selected music source briefly when switching through the home screen before locking, as long as media remains active. It still cannot replace Android's secure lock screen, display-off AOD, or system fingerprint unlock animations; stock Android may suppress the host entirely due to background-activity launch and keyguard policy.
+
+The candidate is a **draft test build**. Verify audio/visual sync, position, selected app continuity, screen-on lock test, and update signing on the target Nothing Phone before merging. Existing installation signing may not match GitHub Actions debug signing.
+
 ## Permissions
 
 PulseWave asks for three user-facing permissions:
