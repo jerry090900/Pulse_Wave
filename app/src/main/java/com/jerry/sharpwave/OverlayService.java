@@ -57,6 +57,25 @@ public class OverlayService extends Service {
         return running;
     }
 
+    /** Local-only troubleshooting; a global mix cannot identify a specific music app. */
+    public static String audioSignalStatus() {
+        OverlayService service = activeInstance;
+        if (!running || service == null) return "Visualizer service is stopped";
+        if (!service.screenInteractive) return "Visualizer paused while screen is off";
+        if (service.visualizer == null) {
+            return "Visualizer unavailable or waiting to reconnect";
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (service.lastVisualizerCallbackAt <= 0
+                || now - service.lastVisualizerCallbackAt > 1500L) {
+            return "No recent Android audio capture callbacks";
+        }
+        if (service.lastAudioAt > 0L && now - service.lastAudioAt <= 1500L) {
+            return "Receiving output-mix FFT peaks (not attributed to a specific app)";
+        }
+        return "Capture callbacks active, but no measurable audio peaks";
+    }
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final byte[] previewWave = new byte[1024];
     private int previewPhase;
