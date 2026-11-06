@@ -16,6 +16,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -136,7 +137,9 @@ public final class StudioActivity extends Activity {
         preview.setAnimated(true);
         content.addView(preview, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(260)));
-        content.addView(text("LIVE DEMO PREVIEW — no audio capture", 11, MUTED, false),
+        content.addView(text(editing.isAudio()
+                ? "SIMULATED MUSIC • LIVE OVERLAY RENDERER"
+                : "IN-APP DESIGN PREVIEW", 11, MUTED, false),
                 match(8, 14));
 
         if (editing.isAudio()) {
@@ -152,6 +155,18 @@ public final class StudioActivity extends Activity {
             slider(content, "Sensitivity", 60, 260, editing.sensitivity, value -> {
                 editing.sensitivity = value; updatePreview();
             });
+            Switch twoColors = new Switch(this);
+            twoColors.setText("Two-color effect (primary + accent)");
+            twoColors.setTextColor(TEXT);
+            twoColors.setTextSize(14);
+            twoColors.setChecked(editing.twoTone);
+            twoColors.setOnCheckedChangeListener((buttonView, checked) -> {
+                editing.twoTone = checked;
+                updatePreview();
+            });
+            content.addView(twoColors, match(8, 10));
+            info(content, "The demo uses the same bars, spikes and wave renderer as the overlay. "
+                    + "Only the sample audio data is simulated.");
         } else if (editing.type == StudioPreset.PHOTO) {
             Button choose = button("Choose a photo", true);
             choose.setOnClickListener(v -> choosePhoto());
