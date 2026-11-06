@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main", "fix/ci-portable-aapt2-20261106", "feature/studio-gallery-editor-mvp-20261106", "fix/centered-bass-sync-lockscreen-20261106", "feature/one-signature-media-access-20261106", "fix/studio-overlay-visibility-20261106" ]
+    branches: [ "main", "fix/ci-portable-aapt2-20261106", "feature/studio-gallery-editor-mvp-20261106", "fix/centered-bass-sync-lockscreen-20261106", "feature/one-signature-media-access-20261106", "fix/studio-overlay-visibility-20261106", "fix/preview-parity-preserve-wave-20261106" ]
   workflow_dispatch:
 
 jobs:
@@ -49,7 +49,7 @@ jobs:
               if not dex_files or "AndroidManifest.xml" not in names:
                   raise SystemExit("Missing DEX or AndroidManifest.xml")
               data = b"".join(z.read(n) for n in dex_files)
-              for cls in ("StudioActivity", "StudioPreset", "StudioStore", "StudioPreviewView", "MainActivity", "OverlayService", "MusicSessionListener", "StudioAudioRenderer"):
+              for cls in ("StudioActivity", "StudioPreset", "StudioStore", "StudioPreviewView", "MainActivity", "OverlayService", "MusicSessionListener", "StudioAudioRenderer", "MusicColorFlow", "StudioColorPicker"):
                   descriptor = ("Lcom/jerry/sharpwave/" + cls + ";").encode()
                   found = descriptor in data
                   print("DEX_CLASS_" + cls + ":", found)
