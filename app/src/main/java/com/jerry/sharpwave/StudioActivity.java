@@ -36,6 +36,18 @@ public final class StudioActivity extends Activity {
     private EditText nameField;
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        OverlayService.setAppUiVisible(true);
+    }
+
+    @Override
+    protected void onPause() {
+        OverlayService.setAppUiVisible(false);
+        super.onPause();
+    }
+
+    @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG);

@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main", "fix/ci-portable-aapt2-20261106", "feature/studio-gallery-editor-mvp-20261106", "fix/centered-bass-sync-lockscreen-20261106" ]
+    branches: [ "main", "fix/ci-portable-aapt2-20261106", "feature/studio-gallery-editor-mvp-20261106", "fix/centered-bass-sync-lockscreen-20261106", "feature/one-signature-media-access-20261106" ]
   workflow_dispatch:
 
 jobs:
