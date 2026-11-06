@@ -63,6 +63,10 @@ final class StudioStore {
         return null;
     }
 
+    static void clearAppliedAudio(Context context) {
+        Prefs.get(context).edit().remove(KEY_ACTIVE_AUDIO).apply();
+    }
+
     static boolean isApplied(Context context, StudioPreset p) {
         String key = p.isAudio() ? KEY_ACTIVE_AUDIO : KEY_ACTIVE_PREVIEW;
         return p.id.equals(Prefs.get(context).getString(key, ""));
