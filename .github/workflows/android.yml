@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main", "fix/ci-portable-aapt2-20261106", "feature/studio-gallery-editor-mvp-20261106", "fix/centered-bass-sync-lockscreen-20261106", "feature/one-signature-media-access-20261106", "fix/studio-overlay-visibility-20261106", "fix/preview-parity-preserve-wave-20261106" ]
+    branches: [ "main", "fix/ci-portable-aapt2-20261106", "feature/studio-gallery-editor-mvp-20261106", "fix/centered-bass-sync-lockscreen-20261106", "feature/one-signature-media-access-20261106", "fix/studio-overlay-visibility-20261106", "fix/preview-parity-preserve-wave-20261106", "feature/three-color-music-flow-20261106" ]
   workflow_dispatch:
 
 jobs:
@@ -25,6 +25,12 @@ jobs:
         run: gradle :app:testDebugUnitTest --stacktrace
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
+      - name: Verify this APK cannot replace installed PulseWave
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging app/build/outputs/apk/debug/app-debug.apk | tee /tmp/pulsewave-preview-badging.txt
+          grep -q "name='com.jerry.sharpwave.preview'" /tmp/pulsewave-preview-badging.txt
+          grep -q "versionCode='6'" /tmp/pulsewave-preview-badging.txt
+          grep -q "application-label:'PulseWave Preview'" /tmp/pulsewave-preview-badging.txt
       - name: Verify built APK size and Studio classes
         run: |
           python3 - <<'PY'
@@ -63,5 +69,5 @@ jobs:
             | grep -E 'Signer #1 certificate SHA-256 digest:'
       - uses: actions/upload-artifact@v4
         with:
-          name: PulseWave-debug-apk
+          name: PulseWave-Preview-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
