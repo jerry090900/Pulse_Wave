@@ -37,6 +37,10 @@ public final class StudioActivity extends Activity {
     private StudioPreset editing;
     private StudioPreviewView preview;
     private EditText nameField;
+    private final Button[] colorSwatches = new Button[3];
+    private static final String[] COLOR_LABELS = {
+            "Color 1 • Left", "Color 2 • Middle", "Color 3 • Right"
+    };
 
     @Override
     protected void onResume() {
@@ -90,6 +94,7 @@ public final class StudioActivity extends Activity {
         editing = null;
         preview = null;
         nameField = null;
+        for (int i = 0; i < colorSwatches.length; i++) colorSwatches[i] = null;
         LinearLayout content = contents(page("PulseWave Studio",
                 "Choose a design, edit it, preview it, then save and apply. No proprietary styles copied.", false));
         info(content, "AUDIO VISUALIZERS • PHOTO CLOCKS • FINGERPRINT FX");
@@ -244,9 +249,8 @@ public final class StudioActivity extends Activity {
             editing.accent = accent;
             editing.third = third;
             updatePreview();
-            // Palette shortcuts also refresh the swatches and exact HEX labels.
-            Toast.makeText(this, "Palette loaded — preview updated",
-                    Toast.LENGTH_SHORT).show();
+            refreshSwatches();
+            Toast.makeText(this, "Palette updated", Toast.LENGTH_SHORT).show();
         });
         parent.addView(choice, match(0, 5));
     }
@@ -271,8 +275,17 @@ public final class StudioActivity extends Activity {
         button.setBackground(tint(color, 13));
     }
 
+    private void refreshSwatches() {
+        for (int i = 0; i < colorSwatches.length; i++) {
+            if (colorSwatches[i] != null) {
+                styleSwatch(colorSwatches[i], COLOR_LABELS[i], swatchColor(i));
+            }
+        }
+    }
+
     private void swatch(LinearLayout parent, String label, int slot) {
         Button swatch = button(label, false);
+        colorSwatches[slot] = swatch;
         styleSwatch(swatch, label, swatchColor(slot));
         swatch.setOnClickListener(v -> StudioColorPicker.show(this, label,
                 swatchColor(slot), color -> {
