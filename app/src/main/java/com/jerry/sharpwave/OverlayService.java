@@ -201,6 +201,7 @@ public class OverlayService extends Service {
         // One-time Preview-only migration to the old top-edge position.
         // Never modifies the original app's settings or subsequent user choices.
         Prefs.restoreTopEdgeForPreviewOnce(this);
+        StudioStore.restoreClassicBarsOnce(this);
         applyStyle();
         reconcileVisualizer(false);
         handler.post(usagePoller);
@@ -244,6 +245,8 @@ public class OverlayService extends Service {
                     && (scene == null || scene.type == StudioPreset.BARS));
             visualizerView.setPresentation(Prefs.centeredBass(this),
                     Prefs.singleColorBars(this), Prefs.bassGain(this));
+            visualizerView.setExtraResponse(Prefs.beatSyncSupport(this),
+                    Prefs.adaptiveResponse(this), Prefs.responseProfile(this));
         }
         LockScreenActivity.applyStyle(spikeWidth, gap, sensitivity, palette);
         LockScreenActivity.applyPresentation(Prefs.centeredBass(this),

@@ -34,8 +34,23 @@ final class StudioAudioRenderer {
     }
 
     static float waveY(float height, float level) {
+        return waveY(height, level, null);
+    }
+
+    static float waveY(float height, float level, StudioPreset style) {
         float v = Math.max(0f, Math.min(1f, level));
-        return Math.max(1f, height * (0.82f - v * 0.72f));
+        float baseline = style == null ? .82f
+                : StudioPreset.clamp(style.waveBaseline, 10, 95) / 100f;
+        float amplitude = .72f * (style == null ? 1f
+                : StudioPreset.clamp(style.waveAmplitude, 10, 180) / 100f);
+        return Math.max(1f, Math.min(height, height * (baseline - v * amplitude)));
+    }
+
+    static float waveStrokeWidth(float density, float barWidth, StudioPreset style) {
+        if (style != null && style.waveStroke > 0) {
+            return Math.max(1f, density * StudioPreset.clamp(style.waveStroke, 1, 18));
+        }
+        return Math.max(2f * density, barWidth * .5f);
     }
 
     /** The original two-color API remains for old styles and regression tests. */
@@ -90,34 +105,35 @@ final class StudioAudioRenderer {
         return Math.max(0f, Math.min(1f, level));
     }
 
-    /** Original three swatches stay exact in static mode; music flow shifts hues. */
+    /**
+     * Line identities never switch: left is A, middle B, right C.
+     * Music flow only brightens each line very gently; it does not remap hues.
+     */
     static int overlaidColor(int layer, int primary, int accent, int third,
             int colorMode, float phase) {
-        if (colorMode == StudioPreset.COLOR_MUSIC_FLOW) {
-            return MusicColorFlow.flowingColorAt(
-                    layer / 3f, phase, primary, accent, third);
-        }
-        return layer == 0 ? primary : layer == 1 ? accent : third;
+        int base = layer == 0 ? primary : layer == 1 ? accent : third;
+        if (colorMode != StudioPreset.COLOR_MUSIC_FLOW) return base;
+        float pulse = Math.max(0f, (float) Math.sin(
+                2f * Math.PI * MusicColorFlow.wrap(phase + layer / 3f)));
+        return MusicColorFlow.blend(base, 0xFFFFFFFF, .12f * pulse);
     }
 
-    /** Back-to-front: draw longer layers first so every shorter layer stays visible. */
-    static void layerDrawOrder(float[] heights, int[] order) {
-        if (heights == null || order == null || heights.length != 3
-                || order.length != 3) {
-            throw new IllegalArgumentException("Exactly three overlaid lines required");
-        }
-        order[0] = 0;
-        order[1] = 1;
-        order[2] = 2;
-        for (int i = 0; i < 2; i++) {
-            for (int j = i + 1; j < 3; j++) {
-                if (heights[order[i]] < heights[order[j]]) {
-                    int previous = order[i];
-                    order[i] = order[j];
-                    order[j] = previous;
-                }
-            }
-        }
+    /** Internal gap between three neighboring lines within the original bar slot. */
+    static float innerGap(float barWidth, float requestedGap) {
+        return Math.max(0f, Math.min(Math.max(0f, requestedGap),
+                Math.max(0f, barWidth) * .18f));
+    }
+
+    static float channelWidth(float barWidth, float innerGap) {
+        float w = Math.max(0f, barWidth);
+        return Math.max(0f, (w - 2f * innerGap) / 3f);
+    }
+
+    /** Each colored channel has its own non-overlapping horizontal slot. */
+    static float channelLeft(float groupLeft, float barWidth,
+            int layer, float innerGap) {
+        int channel = Math.max(0, Math.min(2, layer));
+        return groupLeft + channel * (channelWidth(barWidth, innerGap) + innerGap);
     }
 
     /**
@@ -128,13 +144,22 @@ final class StudioAudioRenderer {
             float barWidthPx, float gapPx, float density, float[] levels, int mode,
             int primary, int accent, int third, int colorMode, float flowPhase) {
         draw(canvas, paint, path, width, height, barWidthPx, gapPx, density,
-                levels, mode, primary, accent, third, colorMode, flowPhase, false);
+                levels, mode, primary, accent, third, colorMode, flowPhase, false, null);
     }
 
     static void draw(Canvas canvas, Paint paint, Path path, int width, int height,
             float barWidthPx, float gapPx, float density, float[] levels, int mode,
             int primary, int accent, int third, int colorMode, float flowPhase,
             boolean barsDownward) {
+        draw(canvas, paint, path, width, height, barWidthPx, gapPx, density,
+                levels, mode, primary, accent, third, colorMode, flowPhase,
+                barsDownward, null);
+    }
+
+    static void draw(Canvas canvas, Paint paint, Path path, int width, int height,
+            float barWidthPx, float gapPx, float density, float[] levels, int mode,
+            int primary, int accent, int third, int colorMode, float flowPhase,
+            boolean barsDownward, StudioPreset style) {
         if (width <= 0 || height <= 0 || levels == null || levels.length == 0) return;
         int count = barCount(width, barWidthPx, gapPx);
         if (count != levels.length) {
@@ -146,15 +171,19 @@ final class StudioAudioRenderer {
         boolean twoTone = colorMode == StudioPreset.COLOR_TWO;
         boolean multiColor = colorMode == StudioPreset.COLOR_THREE
                 || colorMode == StudioPreset.COLOR_MUSIC_FLOW;
-        // Reuse these buffers for all bars; never allocate per FFT band.
-        float[] overlaidHeights = mode == StudioPreset.BARS && multiColor
-                ? new float[3] : null;
-        int[] overlaidOrder = overlaidHeights != null ? new int[3] : null;
-        int[] overlaidColors = overlaidHeights != null ? new int[] {
+        // Reuse one color array and shared per-group geometry. Every channel
+        // occupies its own x slot so A/B/C can all be visible independently.
+        boolean threeChannels = mode == StudioPreset.BARS && multiColor;
+        int[] overlaidColors = threeChannels ? new int[] {
                 overlaidColor(0, primary, accent, third, colorMode, flowPhase),
                 overlaidColor(1, primary, accent, third, colorMode, flowPhase),
                 overlaidColor(2, primary, accent, third, colorMode, flowPhase)
         } : null;
+        float innerSpacing = threeChannels ? innerGap(barWidth,
+                density * (style == null ? 1 : style.lineSpacing)) : 0f;
+        float singleWidth = threeChannels ? channelWidth(barWidth, innerSpacing) : 0f;
+        float previousWaveX = 0f;
+        float previousWaveY = 0f;
         path.reset();
         for (int i = 0; i < count; i++) {
             float level = Math.max(0f, Math.min(1f, levels[i]));
@@ -172,8 +201,22 @@ final class StudioAudioRenderer {
 
             if (mode == StudioPreset.WAVE) {
                 float center = (left + right) * 0.5f;
-                if (i == 0) path.moveTo(center, waveY(height, level));
-                else path.lineTo(center, waveY(height, level));
+                float currentY = waveY(height, level, style);
+                int smooth = style == null ? 0 : style.waveSmoothness;
+                if (i == 0) {
+                    path.moveTo(center, currentY);
+                } else if (smooth <= 0) {
+                    path.lineTo(center, currentY);
+                } else {
+                    float midX = (previousWaveX + center) * .5f;
+                    float midY = (previousWaveY + currentY) * .5f;
+                    float t = StudioPreset.clamp(smooth, 0, 100) / 100f;
+                    path.quadTo(midX + (previousWaveX - midX) * t,
+                            midY + (previousWaveY - midY) * t, midX, midY);
+                    if (i == count - 1) path.lineTo(center, currentY);
+                }
+                previousWaveX = center;
+                previousWaveY = currentY;
             } else if (mode == StudioPreset.SPIKES) {
                 if (barHeight <= 0f) continue;
                 path.reset();
@@ -209,29 +252,24 @@ final class StudioAudioRenderer {
                 canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
                 canvas.restoreToCount(saved);
                 paint.setAntiAlias(antialias);
-            } else if (overlaidHeights != null) {
-                // Three DIFFERENT line lengths occupy the exact same bar slot,
-                // each from an adjacent smoothed FFT frequency. The longer color
-                // forms the tip; shorter colors cover only their own segments.
-                // This is not a gradient and doesn't change response calculations.
-                for (int layer = 0; layer < 3; layer++) {
-                    overlaidHeights[layer] =
-                            overlaidLevel(levels, i, layer) * height;
-                }
-                layerDrawOrder(overlaidHeights, overlaidOrder);
+            } else if (threeChannels) {
+                // A, B, C are three NARROW lines, next to each other within
+                // the original bar-width slot. No gradient and no occlusion.
+                // Their lengths sample the same existing smoothed FFT array.
                 boolean antialias = paint.isAntiAlias();
                 paint.setAntiAlias(true);
                 paint.setShader(null);
-                for (int layerIndex = 0; layerIndex < 3; layerIndex++) {
-                    int layer = overlaidOrder[layerIndex];
-                    float length = overlaidHeights[layer];
+                for (int layer = 0; layer < 3; layer++) {
+                    float length = overlaidLevel(levels, i, layer) * height;
                     if (length <= 0f) continue;
-                    float layerTop = down ? 0f : height - length;
-                    float layerBottom = down ? length : height;
-                    float radius = Math.min((right - left) * 0.45f, length * 0.5f);
+                    float channelX = channelLeft(left, right - left, layer, innerSpacing);
+                    float channelEnd = channelX + singleWidth;
+                    float channelTop = down ? 0f : height - length;
+                    float channelBottom = down ? length : height;
+                    float radius = Math.min(singleWidth * .48f, length * .5f);
                     paint.setColor(overlaidColors[layer]);
-                    canvas.drawRoundRect(left, layerTop, right, layerBottom,
-                            radius, radius, paint);
+                    canvas.drawRoundRect(channelX, channelTop, channelEnd,
+                            channelBottom, radius, radius, paint);
                 }
                 paint.setAntiAlias(antialias);
             } else {
@@ -247,7 +285,8 @@ final class StudioAudioRenderer {
             paint.setAntiAlias(true);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeJoin(Paint.Join.ROUND);
-            paint.setStrokeWidth(Math.max(2f * density, barWidthPx * .5f));
+            float stroke = waveStrokeWidth(density, barWidthPx, style);
+            paint.setStrokeWidth(stroke);
             if (multiColor) {
                 int[] stops = new int[7];
                 for (int i = 0; i < stops.length; i++) {
@@ -257,15 +296,28 @@ final class StudioAudioRenderer {
                 paint.setShader(new LinearGradient(0f, 0f, width, 0f,
                         stops, null, Shader.TileMode.CLAMP));
             }
+            int opacity = style == null ? 100
+                    : StudioPreset.clamp(style.waveOpacity, 10, 100);
             paint.setColor(twoTone ? accent : primary);
+            int glow = style == null ? 0 : StudioPreset.clamp(style.waveGlow, 0, 100);
+            if (glow > 0) {
+                paint.setStrokeWidth(stroke * (1f + glow / 17f));
+                paint.setAlpha(Math.max(1, Math.round(255f * opacity / 100f
+                        * glow / 100f * .25f)));
+                canvas.drawPath(path, paint);
+                paint.setStrokeWidth(stroke);
+            }
+            paint.setAlpha(Math.round(255f * opacity / 100f));
             canvas.drawPath(path, paint);
             paint.setShader(null);
             if (twoTone) {
                 paint.setStrokeWidth(1.5f * density);
                 paint.setColor(primary);
+                paint.setAlpha(Math.round(255f * opacity / 100f));
                 canvas.drawPath(path, paint);
             }
             paint.setStyle(Paint.Style.FILL);
+            paint.setAlpha(255);
             paint.setAntiAlias(antialias);
         }
     }

@@ -1,6 +1,5 @@
 package com.jerry.sharpwave;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -60,16 +59,20 @@ public final class LegacyBarDirectionAndColorTest {
         assertEquals(0f, StudioAudioRenderer.overlaidLevel(null, 0, 1), .00001f);
     }
 
-    @Test public void longestLayerDrawsFirstAndShortestCoversCenter() {
-        int[] order = new int[3];
-        StudioAudioRenderer.layerDrawOrder(new float[]{.6f, .3f, .9f}, order);
-        assertArrayEquals(new int[]{2, 0, 1}, order);
-        // Drawing back-to-front puts 90%-height cyan underneath white
-        // for 60% and pink for 30%. Their ends do NOT share one gradient.
-        StudioAudioRenderer.layerDrawOrder(new float[]{.2f, .8f, .4f}, order);
-        assertArrayEquals(new int[]{1, 2, 0}, order);
-        StudioAudioRenderer.layerDrawOrder(new float[]{0f, 0f, 0f}, order);
-        assertArrayEquals(new int[]{0, 1, 2}, order);
+    @Test public void threeLineSlotsStaySeparateAndOrderedAThenBThenC() {
+        float gap = StudioAudioRenderer.innerGap(12f, 1f);
+        float width = StudioAudioRenderer.channelWidth(12f, gap);
+        float leftA = StudioAudioRenderer.channelLeft(10f, 12f, 0, gap);
+        float leftB = StudioAudioRenderer.channelLeft(10f, 12f, 1, gap);
+        float leftC = StudioAudioRenderer.channelLeft(10f, 12f, 2, gap);
+        assertEquals(1f, gap, .00001f);
+        assertEquals(10f, leftA, .00001f);
+        assertTrue(leftA + width < leftB);
+        assertTrue(leftB + width < leftC);
+        assertEquals(22f, leftC + width, .00001f);
+        // Narrow legacy bars never produce a negative line width.
+        assertTrue(StudioAudioRenderer.channelWidth(2f,
+                StudioAudioRenderer.innerGap(2f, 10f)) > 0f);
     }
 
     @Test public void threeColorsUseExactSwatchesInStaticOverlaidMode() {
@@ -84,22 +87,41 @@ public final class LegacyBarDirectionAndColorTest {
                 2, cyan, white, pink, StudioPreset.COLOR_THREE, .42f));
     }
 
-    @Test public void existingBeatDrivenColorPhaseOnlyChangesHuesNotHeights() {
+    @Test public void beatPulseKeepsPermanentA_B_CColorAssignments() {
         int cyan = 0xFF19CFFA;
         int white = 0xFFFFFFFF;
         int pink = 0xFFFF55A2;
+        // A is always cyan-ish, B remains white, C is always pink-ish.
+        assertEquals(cyan, StudioAudioRenderer.overlaidColor(
+                0, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 0f));
+        assertNotEquals(cyan, StudioAudioRenderer.overlaidColor(
+                0, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, .1f));
+        assertEquals(white, StudioAudioRenderer.overlaidColor(
+                1, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, .1f));
+        assertEquals(pink, StudioAudioRenderer.overlaidColor(
+                2, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 0f));
         for (int layer = 0; layer < 3; layer++) {
-            int start = StudioAudioRenderer.overlaidColor(
-                    layer, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 0f);
-            int moved = StudioAudioRenderer.overlaidColor(
-                    layer, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, .1f);
-            int fullCycle = StudioAudioRenderer.overlaidColor(
-                    layer, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 1f);
-            assertNotEquals(start, moved);
-            assertEquals(start, fullCycle);
+            assertEquals(StudioAudioRenderer.overlaidColor(layer,
+                    cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, .1f),
+                    StudioAudioRenderer.overlaidColor(layer,
+                    cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 1.1f));
         }
+        // Bar height/position remains untouched by color movement.
         assertEquals(25f, StudioAudioRenderer.barBottomY(100f, .25f, true), .00001f);
         assertEquals(75f, StudioAudioRenderer.barTopY(100f, .25f, false), .00001f);
         assertTrue(MusicColorFlow.wrap(1f) == 0f);
+    }
+
+    @Test public void waveEditorDefaultsAndSettingsNeverMoveOldBars() {
+        StudioPreset p = StudioPreset.template("wave", "Wave", StudioPreset.WAVE);
+        assertEquals(82f, StudioAudioRenderer.waveY(100f, 0f, p), .00001f);
+        assertEquals(10f, StudioAudioRenderer.waveY(100f, 1f, p), .00001f);
+        assertEquals(4f, StudioAudioRenderer.waveStrokeWidth(2f, 6f, p), .00001f);
+        p.waveBaseline = 50;
+        p.waveAmplitude = 50;
+        p.waveStroke = 6;
+        assertEquals(32f, StudioAudioRenderer.waveY(100f, .5f, p), .00001f);
+        assertEquals(12f, StudioAudioRenderer.waveStrokeWidth(2f, 6f, p), .00001f);
+        assertEquals(25f, StudioAudioRenderer.barBottomY(100f, .25f, true), .00001f);
     }
 }

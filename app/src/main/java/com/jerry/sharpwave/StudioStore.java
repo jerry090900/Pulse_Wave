@@ -14,6 +14,7 @@ final class StudioStore {
     private static final String KEY_SCENES = "studio_scenes_v1";
     private static final String KEY_ACTIVE_AUDIO = "studio_active_audio_v1";
     private static final String KEY_ACTIVE_PREVIEW = "studio_active_preview_v1";
+    private static final String KEY_CLASSIC_MIGRATION = "pw_classic_wave_off_v1";
     private static final int MAX_PRESETS = 40;
 
     private StudioStore() {}
@@ -35,6 +36,13 @@ final class StudioStore {
                 p.accent = item.optInt("accent", 0xFF9F000E);
                 p.third = item.optInt("third", 0xFF19CFFA);
                 p.flowStrength = item.optInt("flowStrength", 80);
+                p.lineSpacing = item.optInt("lineSpacing", 1);
+                p.waveBaseline = item.optInt("waveBaseline", 82);
+                p.waveAmplitude = item.optInt("waveAmplitude", 100);
+                p.waveStroke = item.optInt("waveStroke", 0);
+                p.waveSmoothness = item.optInt("waveSmoothness", 0);
+                p.waveGlow = item.optInt("waveGlow", 0);
+                p.waveOpacity = item.optInt("waveOpacity", 100);
                 p.colorMode = item.has("colorMode") ? item.optInt("colorMode", -1) : -1;
                 p.width = item.optInt("width", 5);
                 p.gap = item.optInt("gap", 1);
@@ -58,6 +66,7 @@ final class StudioStore {
         if (results.isEmpty()) return defaults();
         addFlowStarter(results);
         addOverlaidStarter(results);
+        addRgbStarter(results);
         return results;
     }
 
@@ -72,6 +81,23 @@ final class StudioStore {
 
     static void clearAppliedAudio(Context context) {
         Prefs.get(context).edit().remove(KEY_ACTIVE_AUDIO).apply();
+    }
+
+    /**
+     * One-time Preview-only restore: if the active style was Wave, show the
+     * classic Bars again. The Wave design remains saved and editable in Studio.
+     * Never resets a user-selected Bars/Spikes scene or original PulseWave.
+     */
+    static void restoreClassicBarsOnce(Context context) {
+        if (!"com.jerry.sharpwave.preview".equals(context.getPackageName())) return;
+        SharedPreferences prefs = Prefs.get(context);
+        if (prefs.getBoolean(KEY_CLASSIC_MIGRATION, false)) return;
+        StudioPreset applied = activeAudio(context);
+        SharedPreferences.Editor edit = prefs.edit();
+        if (applied != null && applied.type == StudioPreset.WAVE) {
+            edit.remove(KEY_ACTIVE_AUDIO);
+        }
+        edit.putBoolean(KEY_CLASSIC_MIGRATION, true).apply();
     }
 
     static boolean isApplied(Context context, StudioPreset p) {
@@ -107,6 +133,13 @@ final class StudioStore {
                 item.put("third", p.third);
                 item.put("colorMode", p.effectiveColorMode());
                 item.put("flowStrength", p.flowStrength);
+                item.put("lineSpacing", p.lineSpacing);
+                item.put("waveBaseline", p.waveBaseline);
+                item.put("waveAmplitude", p.waveAmplitude);
+                item.put("waveStroke", p.waveStroke);
+                item.put("waveSmoothness", p.waveSmoothness);
+                item.put("waveGlow", p.waveGlow);
+                item.put("waveOpacity", p.waveOpacity);
                 item.put("width", p.width);
                 item.put("gap", p.gap);
                 item.put("height", p.height);
@@ -140,6 +173,28 @@ final class StudioStore {
             edit.putString(KEY_ACTIVE_PREVIEW, p.id);
         }
         edit.apply();
+    }
+
+    /** Easy-to-test three separate narrow bars: A on left, B center, C right. */
+    private static StudioPreset rgbStarter() {
+        StudioPreset p = StudioPreset.template("pw_three_individual_lines",
+                "3 Separate Lines A/B/C", StudioPreset.BARS);
+        p.primary = 0xFF19CFFA;
+        p.accent = 0xFFF6F4FF;
+        p.third = 0xFFFF368B;
+        p.setColorMode(StudioPreset.COLOR_THREE);
+        p.width = 12;
+        p.gap = 2;
+        p.lineSpacing = 1;
+        return p;
+    }
+
+    private static void addRgbStarter(List<StudioPreset> list) {
+        if (list.size() >= MAX_PRESETS) return;
+        for (StudioPreset p : list) {
+            if ("pw_three_individual_lines".equals(p.id)) return;
+        }
+        list.add(rgbStarter());
     }
 
     private static StudioPreset flowStarter() {
@@ -205,6 +260,7 @@ final class StudioStore {
         presets.add(StudioPreset.template("pw_ring", "Fingerprint Halo", StudioPreset.RING));
         presets.add(flowStarter());
         presets.add(overlaidStarter());
+        presets.add(rgbStarter());
         return presets;
     }
 }

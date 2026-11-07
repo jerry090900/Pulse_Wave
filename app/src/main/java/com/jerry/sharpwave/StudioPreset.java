@@ -19,6 +19,15 @@ final class StudioPreset {
     // -1 preserves original one/two-color presets on upgrades.
     int colorMode = -1;
     int flowStrength = 80;
+    // Three side-by-side audio lines: fixed A / B / C identities.
+    int lineSpacing = 1;
+    // Optional Wave-only appearance controls. Defaults reproduce the old Wave.
+    int waveBaseline = 82;     // vertical baseline, percent of overlay height
+    int waveAmplitude = 100;   // percent of the original 72%-height response
+    int waveStroke = 0;        // 0 = original automatic stroke width
+    int waveSmoothness = 0;    // 0 = original sharp path, 100 = curved
+    int waveGlow = 0;          // 0 = none
+    int waveOpacity = 100;
     int width = 5;
     int gap = 1;
     int height = 92;
@@ -47,6 +56,13 @@ final class StudioPreset {
         p.third = third;
         p.colorMode = colorMode;
         p.flowStrength = flowStrength;
+        p.lineSpacing = lineSpacing;
+        p.waveBaseline = waveBaseline;
+        p.waveAmplitude = waveAmplitude;
+        p.waveStroke = waveStroke;
+        p.waveSmoothness = waveSmoothness;
+        p.waveGlow = waveGlow;
+        p.waveOpacity = waveOpacity;
         p.width = width;
         p.gap = gap;
         p.height = height;
@@ -110,6 +126,13 @@ final class StudioPreset {
         offsetY = clamp(offsetY, 15, 90);
         opacity = clamp(opacity, 15, 100);
         flowStrength = clamp(flowStrength, 0, 100);
+        lineSpacing = clamp(lineSpacing, 0, 4);
+        waveBaseline = clamp(waveBaseline, 10, 95);
+        waveAmplitude = clamp(waveAmplitude, 10, 180);
+        waveStroke = clamp(waveStroke, 0, 18);
+        waveSmoothness = clamp(waveSmoothness, 0, 100);
+        waveGlow = clamp(waveGlow, 0, 100);
+        waveOpacity = clamp(waveOpacity, 10, 100);
         if (colorMode >= 0) setColorMode(colorMode);
         if (photoUri == null || photoUri.length() > 2048 || !photoUri.startsWith("content://")) {
             photoUri = "";

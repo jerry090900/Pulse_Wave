@@ -66,6 +66,38 @@ public class StudioPresetTest {
     }
 
     @Test
+    public void waveAppearanceAndRgbLineGapCopyAndNormalizeIndependently() {
+        StudioPreset wave = StudioPreset.template("wave", "Personal Wave", StudioPreset.WAVE);
+        wave.waveBaseline = 60;
+        wave.waveAmplitude = 130;
+        wave.waveStroke = 6;
+        wave.waveSmoothness = 70;
+        wave.waveGlow = 40;
+        wave.waveOpacity = 75;
+        wave.lineSpacing = 3;
+        StudioPreset copy = wave.copy();
+        assertEquals(60, copy.waveBaseline);
+        assertEquals(130, copy.waveAmplitude);
+        assertEquals(6, copy.waveStroke);
+        assertEquals(70, copy.waveSmoothness);
+        assertEquals(40, copy.waveGlow);
+        assertEquals(75, copy.waveOpacity);
+        assertEquals(3, copy.lineSpacing);
+
+        copy.waveAmplitude = 500;
+        copy.waveOpacity = 0;
+        copy.waveStroke = -5;
+        copy.lineSpacing = 99;
+        copy.normalize();
+        assertEquals(180, copy.waveAmplitude);
+        assertEquals(10, copy.waveOpacity);
+        assertEquals(0, copy.waveStroke);
+        assertEquals(4, copy.lineSpacing);
+        assertEquals(130, wave.waveAmplitude);
+        assertEquals(75, wave.waveOpacity);
+    }
+
+    @Test
     public void fingerprintPreviewIsNeverAnAudioOverlay() {
         assertFalse(StudioPreset.template("ring", "Ring", StudioPreset.RING).isAudio());
         assertFalse(StudioPreset.template("photo", "Photo", StudioPreset.PHOTO).isAudio());

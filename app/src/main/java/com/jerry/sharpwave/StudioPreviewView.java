@@ -135,7 +135,7 @@ final class StudioPreviewView extends View {
                 widthPx, gapPx, getResources().getDisplayMetrics().density,
                 levels, preset.type, alphaColor(preset.primary),
                 alphaColor(preset.accent), alphaColor(preset.third), colorMode, colorPhase,
-                barsDownward);
+                barsDownward, preset);
         canvas.restoreToCount(save);
     }
 

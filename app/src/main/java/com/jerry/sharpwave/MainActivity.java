@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Prefs.restoreTopEdgeForPreviewOnce(this);
+        StudioStore.restoreClassicBarsOnce(this);
         View ui = buildUi();
         setContentView(ui);
         configureWindow();
@@ -159,6 +160,19 @@ public class MainActivity extends Activity {
             startActivity(new Intent(this, StudioActivity.class));
         });
         studioPanel.addView(openStudio, matchParams(4, 0, 52));
+        Button classicBars = secondaryButton("Classic equalizer • Wave off");
+        classicBars.setOnClickListener(v -> {
+            StudioStore.clearAppliedAudio(this);
+            refreshService();
+            View rebuilt = buildUi();
+            setContentView(rebuilt);
+            rebuilt.requestApplyInsets();
+            Toast.makeText(this, "Classic PulseWave bars restored", Toast.LENGTH_SHORT).show();
+        });
+        studioPanel.addView(classicBars, matchParams(8, 0, 52));
+        studioPanel.addView(text("The old red-and-white bars return. "
+                + "Wave remains available in Studio for editing.",
+                12, color(R.color.text_secondary)), matchParams(8, 0));
         addBlock(root, studioPanel, 0, 24);
 
         section(root, "ACCESS", "Give PulseWave the access it needs to listen and draw.");
@@ -309,6 +323,41 @@ public class MainActivity extends Activity {
         motionPanel.addView(text("Signal comes from Android's output-mix Visualizer, not the music app's private audio session. Some devices cannot provide an accurate mix.",
                 12, color(R.color.text_secondary)), matchParams(8, 0));
         addBlock(root, motionPanel, 0, 24);
+
+        section(root, "OPTIONAL BEAT SUPPORT",
+                "Extra visual response only. The original music synchronization stays on "
+                        + "unless you explicitly enable this.");
+        LinearLayout beatPanel = panel();
+        addMotionToggle(beatPanel, "Beat Sync Pro (off by default)",
+                "Additional kick/drum emphasis from the existing audio levels. "
+                        + "Turn off any time to return to the exact original response.",
+                Prefs.KEY_BEAT_SYNC_SUPPORT, Prefs.beatSyncSupport(this));
+        addDivider(beatPanel);
+        addMotionToggle(beatPanel, "Adaptive visual sensitivity",
+                "When Beat Sync Pro is on, adapt visual gain for quiet and loud music. "
+                        + "Does not change audio volume.",
+                Prefs.KEY_ADAPTIVE_RESPONSE, Prefs.adaptiveResponse(this));
+        beatPanel.addView(text("Visual response preset • works only with Beat Sync Pro",
+                14, color(R.color.text)), matchParams(12, 5));
+        RadioGroup beatProfiles = new RadioGroup(this);
+        String[] beatProfileLabels = {"Smooth • gentle", "Balanced", "Punchy • stronger kicks"};
+        for (int index = 0; index < beatProfileLabels.length; index++) {
+            RadioButton option = new RadioButton(this);
+            option.setId(9200 + index);
+            option.setText(beatProfileLabels[index]);
+            option.setTextColor(color(R.color.text_secondary));
+            option.setButtonTintList(radioTint());
+            beatProfiles.addView(option);
+            if (index == Prefs.responseProfile(this)) option.setChecked(true);
+        }
+        beatProfiles.setOnCheckedChangeListener((group, id) -> {
+            Prefs.get(this).edit().putInt(Prefs.KEY_RESPONSE_PROFILE,
+                    Math.max(BeatSyncSupport.SMOOTH,
+                            Math.min(BeatSyncSupport.PUNCHY, id - 9200))).apply();
+            refreshService();
+        });
+        beatPanel.addView(beatProfiles, matchParams(0, 4));
+        addBlock(root, beatPanel, 0, 24);
 
         section(root, "EXPERIMENTAL LOCK SCREEN", "Screen-on keyguard support varies by Android device.");
         LinearLayout lockPanel = panel();
