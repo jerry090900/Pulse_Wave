@@ -201,6 +201,7 @@ public class OverlayService extends Service {
         // One-time Preview-only migration to the old top-edge position.
         // Never modifies the original app's settings or subsequent user choices.
         Prefs.restoreTopEdgeForPreviewOnce(this);
+        StudioStore.restoreClassicBarsOnce(this);
         applyStyle();
         reconcileVisualizer(false);
         handler.post(usagePoller);
