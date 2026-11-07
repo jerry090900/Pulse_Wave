@@ -62,6 +62,10 @@ public class SharpVisualizerView extends View {
     private int studioFlowStrength = 80;
     private boolean barsDownward;
     private StudioPreset activeStudioStyle;
+    private final BeatSyncSupport beatSyncSupport = new BeatSyncSupport();
+    private boolean beatEnhanceEnabled;
+    private boolean adaptiveResponseEnabled;
+    private int beatResponseProfile = BeatSyncSupport.BALANCED;
     private final MusicColorFlow musicColorFlow = new MusicColorFlow();
     private boolean centerBass = true;
     private boolean solidBars = true;
@@ -117,6 +121,18 @@ public class SharpVisualizerView extends View {
     /** Top bars extend down from the screen edge. Never reverses Wave or FFT mapping. */
     public void setBarsDownward(boolean enabled) {
         barsDownward = enabled;
+        invalidate();
+    }
+
+    /**
+     * Optional extra visual reaction. Disabled by default: the original
+     * smoothed levels and every audio callback stay exactly unchanged.
+     */
+    public void setExtraResponse(boolean enabled, boolean adaptive, int profile) {
+        beatEnhanceEnabled = enabled;
+        adaptiveResponseEnabled = adaptive;
+        beatResponseProfile = profile;
+        beatSyncSupport.reset();
         invalidate();
     }
 
@@ -303,6 +319,9 @@ public class SharpVisualizerView extends View {
             float tau = target > smoothed[i] ? ATTACK_TAU_SECONDS : RELEASE_TAU_SECONDS;
             smoothed[i] = smoothLevel(smoothed[i], target, elapsed, tau * 1000f);
         }
+        float[] displayLevels = beatSyncSupport.enhance(smoothed, now,
+                beatEnhanceEnabled, adaptiveResponseEnabled,
+                beatResponseProfile, centerBass);
         int colorMode = studioColorsActive ? studioColorMode
                 : StudioAudioRenderer.useTwoColors(false, studioTwoTone, solidBars)
                         ? StudioPreset.COLOR_TWO : StudioPreset.COLOR_SOLID;
@@ -314,7 +333,7 @@ public class SharpVisualizerView extends View {
                 ? studioAccent : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][1];
         StudioAudioRenderer.draw(canvas, paint, studioPath, width, height,
                 Math.max(1f, dp(spikeWidthDp)), Math.max(0f, dp(gapDp)),
-                getResources().getDisplayMetrics().density, smoothed,
+                getResources().getDisplayMetrics().density, displayLevels,
                 studioColorsActive ? studioMode : StudioPreset.BARS,
                 primary, accent, studioThird, colorMode, colorPhase,
                 barsDownward, activeStudioStyle);
