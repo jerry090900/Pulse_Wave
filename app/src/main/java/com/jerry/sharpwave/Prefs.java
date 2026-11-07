@@ -33,6 +33,10 @@ final class Prefs {
     static final String KEY_AS_PLAYED = "capture_as_played";
     // Optional, user-enabled media-session detection: no notification contents collected.
     static final String KEY_MEDIA_SESSION_DETECTION = "media_session_detection";
+    // Optional extras: OFF by default, so previous music-sync remains identical.
+    static final String KEY_BEAT_SYNC_SUPPORT = "beat_sync_support";
+    static final String KEY_ADAPTIVE_RESPONSE = "adaptive_visual_response";
+    static final String KEY_RESPONSE_PROFILE = "visual_response_profile";
 
     private Prefs() {}
 
@@ -84,5 +88,18 @@ final class Prefs {
     static boolean asPlayed(Context c) { return get(c).getBoolean(KEY_AS_PLAYED, true); }
     static boolean mediaSessionDetectionEnabled(Context c) {
         return get(c).getBoolean(KEY_MEDIA_SESSION_DETECTION, false);
+    }
+
+    static boolean beatSyncSupport(Context c) {
+        return get(c).getBoolean(KEY_BEAT_SYNC_SUPPORT, false);
+    }
+
+    static boolean adaptiveResponse(Context c) {
+        return get(c).getBoolean(KEY_ADAPTIVE_RESPONSE, false);
+    }
+
+    static int responseProfile(Context c) {
+        return Math.max(BeatSyncSupport.SMOOTH, Math.min(BeatSyncSupport.PUNCHY,
+                get(c).getInt(KEY_RESPONSE_PROFILE, BeatSyncSupport.BALANCED)));
     }
 }
