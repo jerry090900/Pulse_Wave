@@ -57,6 +57,7 @@ final class StudioStore {
         }
         if (results.isEmpty()) return defaults();
         addFlowStarter(results);
+        addOverlaidStarter(results);
         return results;
     }
 
@@ -153,6 +154,28 @@ final class StudioStore {
         return flow;
     }
 
+    /** Optional Muviz-style Bars starter: no existing preset is overwritten. */
+    private static StudioPreset overlaidStarter() {
+        StudioPreset p = StudioPreset.template("pw_overlaid_three_lines",
+                "Overlaid 3 Lines", StudioPreset.BARS);
+        p.primary = 0xFF19CFFA; // cyan
+        p.accent = 0xFFF6F4FF;  // soft white
+        p.third = 0xFFFF368B;  // pink
+        p.setColorMode(StudioPreset.COLOR_MUSIC_FLOW);
+        p.flowStrength = 80;
+        p.width = 5;
+        p.gap = 1;
+        return p;
+    }
+
+    private static void addOverlaidStarter(List<StudioPreset> list) {
+        if (list.size() >= MAX_PRESETS) return;
+        for (StudioPreset item : list) {
+            if ("pw_overlaid_three_lines".equals(item.id)) return;
+        }
+        list.add(overlaidStarter());
+    }
+
     private static void addFlowStarter(List<StudioPreset> list) {
         if (list.size() >= MAX_PRESETS) return;
         for (StudioPreset item : list) {
@@ -181,6 +204,7 @@ final class StudioStore {
         presets.add(StudioPreset.template("pw_photo", "My Photo Clock", StudioPreset.PHOTO));
         presets.add(StudioPreset.template("pw_ring", "Fingerprint Halo", StudioPreset.RING));
         presets.add(flowStarter());
+        presets.add(overlaidStarter());
         return presets;
     }
 }
