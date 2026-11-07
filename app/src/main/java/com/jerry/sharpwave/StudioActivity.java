@@ -39,7 +39,7 @@ public final class StudioActivity extends Activity {
     private EditText nameField;
     private final Button[] colorSwatches = new Button[3];
     private static final String[] COLOR_LABELS = {
-            "Color 1 • Start", "Color 2 • Middle", "Color 3 • End"
+            "Color 1 • Line A", "Color 2 • Line B", "Color 3 • Line C"
     };
 
     @Override
@@ -165,8 +165,8 @@ public final class StudioActivity extends Activity {
             info(content, "LINE COLORS");
             RadioGroup colorModes = new RadioGroup(this);
             String[] labels = {
-                    "One color", "Two colors (classic)", "Three colors",
-                    "Music Color Flow • 3 colors"
+                    "One color", "Two colors (classic)", "3 overlapping color lines",
+                    "3 overlapping lines • Music Color Flow"
             };
             for (int i = 0; i < labels.length; i++) {
                 RadioButton option = new RadioButton(this);
@@ -183,16 +183,17 @@ public final class StudioActivity extends Activity {
             });
             content.addView(colorModes, match(0, 10));
             info(content, "Tap a color to edit its hue, saturation, brightness or exact HEX.");
-            swatch(content, "Color 1 • Start", 0);
-            swatch(content, "Color 2 • Middle", 1);
-            swatch(content, "Color 3 • End", 2);
+            swatch(content, "Color 1 • Line A", 0);
+            swatch(content, "Color 2 • Line B", 1);
+            swatch(content, "Color 3 • Line C", 2);
             slider(content, "Music flow strength", 0, 100, editing.flowStrength, value -> {
                 editing.flowStrength = value; updatePreview();
             });
-            info(content, "In Bars, colors flow from the top edge down through taller peaks. "
-                    + "Short bars show the first color; long bars reveal the others. "
-                    + "Music Color Flow gently moves colors with beats, not bar height. "
-                    + "Wave keeps its original stroke. Demo audio is simulated.");
+            info(content, "Bars: three colored lines occupy each SAME bar position. "
+                    + "Each line listens to a nearby audio frequency and can reach a "
+                    + "different length. The longer line shows at its tip; shorter "
+                    + "lines overlap in front. Music Color Flow rotates the line colors "
+                    + "with the existing beats. Wave stays unchanged. Demo audio is simulated.");
         } else if (editing.type == StudioPreset.PHOTO) {
             Button choose = button("Choose a photo", true);
             choose.setOnClickListener(v -> choosePhoto());
