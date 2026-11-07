@@ -1,5 +1,6 @@
 package com.jerry.sharpwave;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -41,42 +42,62 @@ public final class LegacyBarDirectionAndColorTest {
         assertEquals(10f, StudioAudioRenderer.waveY(100f, 1f), .00001f);
     }
 
-    @Test public void threeColorsAreAnchoredToFullBarAreaNotStretchedPerBar() {
-        int cyan = 0xFF00DDFF;
-        int white = 0xFFFFFFFF;
-        int pink = 0xFFFF55A2;
-        int[] stops = StudioAudioRenderer.heightStops(
-                cyan, white, pink, StudioPreset.COLOR_THREE, .76f);
-        assertEquals(3, stops.length);
-        assertEquals(cyan, stops[0]);
-        assertEquals(white, stops[1]);
-        assertEquals(pink, stops[2]);
-        // At one-fifth of FULL overlay height the global gradient still
-        // emphasizes the first swatch. Only long bars reach the last swatch.
-        int shortBarColor = MusicColorFlow.threeColorAt(.2f, cyan, white, pink);
-        assertNotEquals(pink, shortBarColor);
-        assertNotEquals(white, shortBarColor);
-        assertEquals(white, MusicColorFlow.threeColorAt(.5f, cyan, white, pink));
-        assertEquals(pink, MusicColorFlow.threeColorAt(1f, cyan, white, pink));
+    @Test public void everyBarRendersThreeIndependentSamplesAtOnePosition() {
+        // A 60-bar screen has a +/-5 bar frequency offset for overlaid lines.
+        assertEquals(30, StudioAudioRenderer.overlaidSampleIndex(30, 60, 0));
+        assertEquals(35, StudioAudioRenderer.overlaidSampleIndex(30, 60, 1));
+        assertEquals(25, StudioAudioRenderer.overlaidSampleIndex(30, 60, 2));
+
+        float[] levels = new float[60];
+        levels[30] = .6f;
+        levels[35] = .3f;
+        levels[25] = .9f;
+        assertEquals(.6f, StudioAudioRenderer.overlaidLevel(levels, 30, 0), .00001f);
+        assertEquals(.3f, StudioAudioRenderer.overlaidLevel(levels, 30, 1), .00001f);
+        assertEquals(.9f, StudioAudioRenderer.overlaidLevel(levels, 30, 2), .00001f);
+        assertEquals(0, StudioAudioRenderer.overlaidSampleIndex(0, 60, 2));
+        assertEquals(59, StudioAudioRenderer.overlaidSampleIndex(59, 60, 1));
+        assertEquals(0f, StudioAudioRenderer.overlaidLevel(null, 0, 1), .00001f);
     }
 
-    @Test public void musicFlowGentlyMovesGlobalColorsButNotBarHeights() {
-        int cyan = 0xFF00DDFF;
+    @Test public void longestLayerDrawsFirstAndShortestCoversCenter() {
+        int[] order = new int[3];
+        StudioAudioRenderer.layerDrawOrder(new float[]{.6f, .3f, .9f}, order);
+        assertArrayEquals(new int[]{2, 0, 1}, order);
+        // Drawing back-to-front puts 90%-height cyan underneath white
+        // for 60% and pink for 30%. Their ends do NOT share one gradient.
+        StudioAudioRenderer.layerDrawOrder(new float[]{.2f, .8f, .4f}, order);
+        assertArrayEquals(new int[]{1, 2, 0}, order);
+        StudioAudioRenderer.layerDrawOrder(new float[]{0f, 0f, 0f}, order);
+        assertArrayEquals(new int[]{0, 1, 2}, order);
+    }
+
+    @Test public void threeColorsUseExactSwatchesInStaticOverlaidMode() {
+        int cyan = 0xFF19CFFA;
         int white = 0xFFFFFFFF;
         int pink = 0xFFFF55A2;
-        int[] still = StudioAudioRenderer.heightStops(
-                cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 0f);
-        int[] moving = StudioAudioRenderer.heightStops(
-                cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, .25f);
-        int[] cycle = StudioAudioRenderer.heightStops(
-                cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 1f);
-        assertEquals(17, still.length);
-        assertEquals(17, moving.length);
-        assertEquals(cyan, still[0]);
-        assertEquals(white, still[8]);
-        assertEquals(pink, still[16]);
-        assertNotEquals(still[8], moving[8]);
-        assertEquals(still[8], cycle[8]); // No visible palette jump on wrap.
+        assertEquals(cyan, StudioAudioRenderer.overlaidColor(
+                0, cyan, white, pink, StudioPreset.COLOR_THREE, .42f));
+        assertEquals(white, StudioAudioRenderer.overlaidColor(
+                1, cyan, white, pink, StudioPreset.COLOR_THREE, .42f));
+        assertEquals(pink, StudioAudioRenderer.overlaidColor(
+                2, cyan, white, pink, StudioPreset.COLOR_THREE, .42f));
+    }
+
+    @Test public void existingBeatDrivenColorPhaseOnlyChangesHuesNotHeights() {
+        int cyan = 0xFF19CFFA;
+        int white = 0xFFFFFFFF;
+        int pink = 0xFFFF55A2;
+        for (int layer = 0; layer < 3; layer++) {
+            int start = StudioAudioRenderer.overlaidColor(
+                    layer, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 0f);
+            int moved = StudioAudioRenderer.overlaidColor(
+                    layer, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, .1f);
+            int fullCycle = StudioAudioRenderer.overlaidColor(
+                    layer, cyan, white, pink, StudioPreset.COLOR_MUSIC_FLOW, 1f);
+            assertNotEquals(start, moved);
+            assertEquals(start, fullCycle);
+        }
         assertEquals(25f, StudioAudioRenderer.barBottomY(100f, .25f, true), .00001f);
         assertEquals(75f, StudioAudioRenderer.barTopY(100f, .25f, false), .00001f);
         assertTrue(MusicColorFlow.wrap(1f) == 0f);
