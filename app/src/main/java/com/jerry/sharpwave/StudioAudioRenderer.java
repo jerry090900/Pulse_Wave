@@ -67,27 +67,57 @@ final class StudioAudioRenderer {
     }
 
     /**
-     * Muviz-like color distribution: colors are anchored to the WHOLE overlay
-     * height, not stretched individually to each bar. A quiet bar displays just
-     * the first color; taller bars progressively reveal the second and third.
+     * Three AUDIO-DRIVEN lengths at the same x coordinate, based solely on the
+     * existing smoothed spectrum. No new capture, timers or smoothing are added.
      *
-     * Music flow only shifts these color boundaries gently using the existing
-     * beat-driven phase. It never adjusts bar heights or FFT processing.
+     * Offset sampling lets the three colors respond differently without altering
+     * the original FFT-to-bar response or primary level. On narrow displays,
+     * clamping keeps each sample inside the spectrum.
      */
-    static int[] heightStops(int first, int middle, int third,
+    static int overlaidSampleIndex(int index, int count, int layer) {
+        if (count <= 1) return 0;
+        int center = Math.max(0, Math.min(count - 1, index));
+        int offset = Math.max(2, count / 12);
+        if (layer == 1) return Math.min(count - 1, center + offset);
+        if (layer == 2) return Math.max(0, center - offset);
+        return center;
+    }
+
+    static float overlaidLevel(float[] smoothedLevels, int index, int layer) {
+        if (smoothedLevels == null || smoothedLevels.length == 0) return 0f;
+        float level = smoothedLevels[
+                overlaidSampleIndex(index, smoothedLevels.length, layer)];
+        return Math.max(0f, Math.min(1f, level));
+    }
+
+    /** Original three swatches stay exact in static mode; music flow shifts hues. */
+    static int overlaidColor(int layer, int primary, int accent, int third,
             int colorMode, float phase) {
-        if (colorMode == StudioPreset.COLOR_THREE) {
-            return new int[]{first, middle, third};
+        if (colorMode == StudioPreset.COLOR_MUSIC_FLOW) {
+            return MusicColorFlow.flowingColorAt(
+                    layer / 3f, phase, primary, accent, third);
         }
-        int[] colors = new int[17];
-        float shift = 0.095f * (float) Math.sin(
-                MusicColorFlow.wrap(phase) * (Math.PI * 2.0));
-        for (int i = 0; i < colors.length; i++) {
-            float heightPosition = i / (float) (colors.length - 1);
-            colors[i] = MusicColorFlow.threeColorAt(
-                    heightPosition + shift, first, middle, third);
+        return layer == 0 ? primary : layer == 1 ? accent : third;
+    }
+
+    /** Back-to-front: draw longer layers first so every shorter layer stays visible. */
+    static void layerDrawOrder(float[] heights, int[] order) {
+        if (heights == null || order == null || heights.length != 3
+                || order.length != 3) {
+            throw new IllegalArgumentException("Exactly three overlaid lines required");
         }
-        return colors;
+        order[0] = 0;
+        order[1] = 1;
+        order[2] = 2;
+        for (int i = 0; i < 2; i++) {
+            for (int j = i + 1; j < 3; j++) {
+                if (heights[order[i]] < heights[order[j]]) {
+                    int previous = order[i];
+                    order[i] = order[j];
+                    order[j] = previous;
+                }
+            }
+        }
     }
 
     /**
@@ -116,14 +146,15 @@ final class StudioAudioRenderer {
         boolean twoTone = colorMode == StudioPreset.COLOR_TWO;
         boolean multiColor = colorMode == StudioPreset.COLOR_THREE
                 || colorMode == StudioPreset.COLOR_MUSIC_FLOW;
-        // Fixed vertical gradient coordinates shared across ALL bars.
-        // Never resize the shader to an individual bar's height.
-        LinearGradient heightGradient = null;
-        if (mode == StudioPreset.BARS && multiColor) {
-            heightGradient = new LinearGradient(0f, 0f, 0f, Math.max(1, height),
-                    heightStops(primary, accent, third, colorMode, flowPhase),
-                    null, Shader.TileMode.CLAMP);
-        }
+        // Reuse these buffers for all bars; never allocate per FFT band.
+        float[] overlaidHeights = mode == StudioPreset.BARS && multiColor
+                ? new float[3] : null;
+        int[] overlaidOrder = overlaidHeights != null ? new int[3] : null;
+        int[] overlaidColors = overlaidHeights != null ? new int[] {
+                overlaidColor(0, primary, accent, third, colorMode, flowPhase),
+                overlaidColor(1, primary, accent, third, colorMode, flowPhase),
+                overlaidColor(2, primary, accent, third, colorMode, flowPhase)
+        } : null;
         path.reset();
         for (int i = 0; i < count; i++) {
             float level = Math.max(0f, Math.min(1f, levels[i]));
@@ -178,12 +209,31 @@ final class StudioAudioRenderer {
                 canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
                 canvas.restoreToCount(saved);
                 paint.setAntiAlias(antialias);
-            } else if (heightGradient != null) {
-                if (barHeight <= 0f) continue;
-                paint.setColor(0xFFFFFFFF);
-                paint.setShader(heightGradient);
-                canvas.drawRect(left, top, right, bottom, paint);
+            } else if (overlaidHeights != null) {
+                // Three DIFFERENT line lengths occupy the exact same bar slot,
+                // each from an adjacent smoothed FFT frequency. The longer color
+                // forms the tip; shorter colors cover only their own segments.
+                // This is not a gradient and doesn't change response calculations.
+                for (int layer = 0; layer < 3; layer++) {
+                    overlaidHeights[layer] =
+                            overlaidLevel(levels, i, layer) * height;
+                }
+                layerDrawOrder(overlaidHeights, overlaidOrder);
+                boolean antialias = paint.isAntiAlias();
+                paint.setAntiAlias(true);
                 paint.setShader(null);
+                for (int layerIndex = 0; layerIndex < 3; layerIndex++) {
+                    int layer = overlaidOrder[layerIndex];
+                    float length = overlaidHeights[layer];
+                    if (length <= 0f) continue;
+                    float layerTop = down ? 0f : height - length;
+                    float layerBottom = down ? length : height;
+                    float radius = Math.min((right - left) * 0.45f, length * 0.5f);
+                    paint.setColor(overlaidColors[layer]);
+                    canvas.drawRoundRect(left, layerTop, right, layerBottom,
+                            radius, radius, paint);
+                }
+                paint.setAntiAlias(antialias);
             } else {
                 paint.setColor(lineColor);
                 canvas.drawRect(left, top, right, bottom, paint);
