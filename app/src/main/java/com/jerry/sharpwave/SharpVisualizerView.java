@@ -61,6 +61,7 @@ public class SharpVisualizerView extends View {
     private int studioColorMode = StudioPreset.COLOR_TWO;
     private int studioFlowStrength = 80;
     private boolean barsDownward;
+    private StudioPreset activeStudioStyle;
     private final MusicColorFlow musicColorFlow = new MusicColorFlow();
     private boolean centerBass = true;
     private boolean solidBars = true;
@@ -92,6 +93,7 @@ public class SharpVisualizerView extends View {
 
     /** Applies only original PulseWave-owned audio presets; null keeps legacy behavior. */
     public void setStudioScene(StudioPreset scene) {
+        activeStudioStyle = scene != null && scene.isAudio() ? scene.copy() : null;
         if (scene == null || !scene.isAudio()) {
             studioMode = StudioPreset.BARS;
             studioColorsActive = false;
@@ -314,7 +316,8 @@ public class SharpVisualizerView extends View {
                 Math.max(1f, dp(spikeWidthDp)), Math.max(0f, dp(gapDp)),
                 getResources().getDisplayMetrics().density, smoothed,
                 studioColorsActive ? studioMode : StudioPreset.BARS,
-                primary, accent, studioThird, colorMode, colorPhase, barsDownward);
+                primary, accent, studioThird, colorMode, colorPhase,
+                barsDownward, activeStudioStyle);
     }
 
     private void ensureRenderArrays(int count) {
