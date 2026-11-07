@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Prefs.restoreTopEdgeForPreviewOnce(this);
+        StudioStore.restoreClassicBarsOnce(this);
         View ui = buildUi();
         setContentView(ui);
         configureWindow();
@@ -159,6 +160,19 @@ public class MainActivity extends Activity {
             startActivity(new Intent(this, StudioActivity.class));
         });
         studioPanel.addView(openStudio, matchParams(4, 0, 52));
+        Button classicBars = secondaryButton("Classic equalizer • Wave off");
+        classicBars.setOnClickListener(v -> {
+            StudioStore.clearAppliedAudio(this);
+            refreshService();
+            View rebuilt = buildUi();
+            setContentView(rebuilt);
+            rebuilt.requestApplyInsets();
+            Toast.makeText(this, "Classic PulseWave bars restored", Toast.LENGTH_SHORT).show();
+        });
+        studioPanel.addView(classicBars, matchParams(8, 0, 52));
+        studioPanel.addView(text("The old red-and-white bars return. "
+                + "Wave remains available in Studio for editing.",
+                12, color(R.color.text_secondary)), matchParams(8, 0));
         addBlock(root, studioPanel, 0, 24);
 
         section(root, "ACCESS", "Give PulseWave the access it needs to listen and draw.");
