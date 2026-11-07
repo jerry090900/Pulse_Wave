@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Prefs.restoreTopEdgeForPreviewOnce(this);
         View ui = buildUi();
         setContentView(ui);
         configureWindow();
@@ -266,9 +267,9 @@ public class MainActivity extends Activity {
         addBlock(root, controls, 0, 24);
 
         section(root, "POSITION & AUDIO RESPONSE",
-                "Move the old equalizer independently. Wave stays centered; music sync is untouched.");
+                "Top restores the original screen-edge overlay. Music sync is unchanged.");
         LinearLayout motionPanel = panel();
-        motionPanel.addView(text("Equalizer bars position (Wave stays centered)", 15, color(R.color.text)),
+        motionPanel.addView(text("Visualizer position (Bars, Spikes and Wave)", 15, color(R.color.text)),
                 matchParams(0, 6));
         RadioGroup positions = new RadioGroup(this);
         String[] positionLabels = {"Top", "Middle (recommended)", "Bottom"};
@@ -288,8 +289,8 @@ public class MainActivity extends Activity {
             refreshService();
         });
         motionPanel.addView(positions, matchParams(0, 4));
-        motionPanel.addView(text("Top: old bars grow downward from the top edge. "
-                + "Middle and Bottom keep the original bar direction.",
+        motionPanel.addView(text("Top: bars grow downward from the screen edge. "
+                + "Middle and Bottom keep upward bars. Wave follows your position setting.",
                 12, color(R.color.text_secondary)), matchParams(0, 13));
         addMotionToggle(motionPanel, "Center the bass",
                 "Low frequencies peak in the center; higher notes spread to both edges.",

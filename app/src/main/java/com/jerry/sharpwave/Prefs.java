@@ -22,6 +22,8 @@ final class Prefs {
     static final String KEY_LOCK_SCREEN = "lock_screen_experimental";
     // New defaults affect presentation only. Legacy prefs remain unchanged for existing installs.
     static final String KEY_OVERLAY_POSITION = "overlay_position";
+    private static final String KEY_PREVIEW_TOP_EDGE_MIGRATION =
+            "preview_top_edge_restored_20261107";
     static final int POSITION_TOP = 0;
     static final int POSITION_CENTER = 1;
     static final int POSITION_BOTTOM = 2;
@@ -58,8 +60,21 @@ final class Prefs {
     static boolean lockScreenEnabled(Context c) { return get(c).getBoolean(KEY_LOCK_SCREEN, false); }
 
     static int overlayPosition(Context c) {
-        int p = get(c).getInt(KEY_OVERLAY_POSITION, POSITION_CENTER);
-        return p >= POSITION_TOP && p <= POSITION_BOTTOM ? p : POSITION_CENTER;
+        int p = get(c).getInt(KEY_OVERLAY_POSITION, POSITION_TOP);
+        return p >= POSITION_TOP && p <= POSITION_BOTTOM ? p : POSITION_TOP;
+    }
+
+    /**
+     * Apply the explicitly requested top-edge layout ONCE to an existing
+     * separately installed Preview. Afterward any Top/Middle/Bottom choice
+     * remains the user's own; the original PulseWave is never migrated.
+     */
+    static void restoreTopEdgeForPreviewOnce(Context c) {
+        if (!"com.jerry.sharpwave.preview".equals(c.getPackageName())) return;
+        SharedPreferences prefs = get(c);
+        if (prefs.getBoolean(KEY_PREVIEW_TOP_EDGE_MIGRATION, false)) return;
+        prefs.edit().putInt(KEY_OVERLAY_POSITION, POSITION_TOP)
+                .putBoolean(KEY_PREVIEW_TOP_EDGE_MIGRATION, true).apply();
     }
     static boolean centeredBass(Context c) { return get(c).getBoolean(KEY_CENTER_BASS, true); }
     static boolean singleColorBars(Context c) { return get(c).getBoolean(KEY_SINGLE_COLOR, false); }

@@ -2,7 +2,6 @@ package com.jerry.sharpwave;
 
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Shader;
@@ -11,7 +10,7 @@ import android.graphics.Shader;
  * Shared drawing stage for Studio audio styles.
  *
  * The live overlay still owns its existing FFT, mapping, smoothing, capture timing,
- * and centered on-screen position. The editor supplies simulated levels to this
+ * and on-screen position. The editor supplies simulated levels to this
  * exact same geometry and paint code; it never pretends to capture music.
  */
 final class StudioAudioRenderer {
@@ -67,16 +66,26 @@ final class StudioAudioRenderer {
         return downward ? size : height;
     }
 
-    /** A three-color gradient inside EACH bar, rather than one color per bar. */
-    static int[] verticalStops(int first, int middle, int third,
+    /**
+     * Muviz-like color distribution: colors are anchored to the WHOLE overlay
+     * height, not stretched individually to each bar. A quiet bar displays just
+     * the first color; taller bars progressively reveal the second and third.
+     *
+     * Music flow only shifts these color boundaries gently using the existing
+     * beat-driven phase. It never adjusts bar heights or FFT processing.
+     */
+    static int[] heightStops(int first, int middle, int third,
             int colorMode, float phase) {
         if (colorMode == StudioPreset.COLOR_THREE) {
             return new int[]{first, middle, third};
         }
-        int[] colors = new int[7];
+        int[] colors = new int[17];
+        float shift = 0.095f * (float) Math.sin(
+                MusicColorFlow.wrap(phase) * (Math.PI * 2.0));
         for (int i = 0; i < colors.length; i++) {
-            colors[i] = colorForLine(i / (float) (colors.length - 1),
-                    first, middle, third, colorMode, phase);
+            float heightPosition = i / (float) (colors.length - 1);
+            colors[i] = MusicColorFlow.threeColorAt(
+                    heightPosition + shift, first, middle, third);
         }
         return colors;
     }
@@ -107,14 +116,13 @@ final class StudioAudioRenderer {
         boolean twoTone = colorMode == StudioPreset.COLOR_TWO;
         boolean multiColor = colorMode == StudioPreset.COLOR_THREE
                 || colorMode == StudioPreset.COLOR_MUSIC_FLOW;
-        // Allocate one shader per rendered frame, not per FFT band.
-        LinearGradient barGradient = null;
-        Matrix gradientMatrix = null;
+        // Fixed vertical gradient coordinates shared across ALL bars.
+        // Never resize the shader to an individual bar's height.
+        LinearGradient heightGradient = null;
         if (mode == StudioPreset.BARS && multiColor) {
-            barGradient = new LinearGradient(0f, 0f, 0f, 1f,
-                    verticalStops(primary, accent, third, colorMode, flowPhase),
+            heightGradient = new LinearGradient(0f, 0f, 0f, Math.max(1, height),
+                    heightStops(primary, accent, third, colorMode, flowPhase),
                     null, Shader.TileMode.CLAMP);
-            gradientMatrix = new Matrix();
         }
         path.reset();
         for (int i = 0; i < count; i++) {
@@ -170,15 +178,10 @@ final class StudioAudioRenderer {
                 canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
                 canvas.restoreToCount(saved);
                 paint.setAntiAlias(antialias);
-            } else if (barGradient != null) {
+            } else if (heightGradient != null) {
                 if (barHeight <= 0f) continue;
-                // The shared gradient stretches to the individual bar height:
-                // even short bars contain all three colors in one line.
-                gradientMatrix.setScale(1f, barHeight);
-                gradientMatrix.postTranslate(0f, top);
-                barGradient.setLocalMatrix(gradientMatrix);
                 paint.setColor(0xFFFFFFFF);
-                paint.setShader(barGradient);
+                paint.setShader(heightGradient);
                 canvas.drawRect(left, top, right, bottom, paint);
                 paint.setShader(null);
             } else {
