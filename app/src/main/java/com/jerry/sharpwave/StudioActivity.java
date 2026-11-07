@@ -39,7 +39,7 @@ public final class StudioActivity extends Activity {
     private EditText nameField;
     private final Button[] colorSwatches = new Button[3];
     private static final String[] COLOR_LABELS = {
-            "Color 1 • Line A", "Color 2 • Line B", "Color 3 • Line C"
+            "Line 1 (A / Left)", "Line 2 (B / Center)", "Line 3 (C / Right)"
     };
 
     @Override
@@ -166,7 +166,7 @@ public final class StudioActivity extends Activity {
             RadioGroup colorModes = new RadioGroup(this);
             String[] labels = {
                     "One color", "Two colors (classic)", "3 overlapping color lines",
-                    "3 overlapping lines • Music Color Flow"
+                    "3 separate lines • Beat pulse A/B/C"
             };
             for (int i = 0; i < labels.length; i++) {
                 RadioButton option = new RadioButton(this);
@@ -183,17 +183,51 @@ public final class StudioActivity extends Activity {
             });
             content.addView(colorModes, match(0, 10));
             info(content, "Tap a color to edit its hue, saturation, brightness or exact HEX.");
-            swatch(content, "Color 1 • Line A", 0);
-            swatch(content, "Color 2 • Line B", 1);
-            swatch(content, "Color 3 • Line C", 2);
+            swatch(content, "Line 1 (A / Left) color", 0);
+            swatch(content, "Line 2 (B / Center) color", 1);
+            swatch(content, "Line 3 (C / Right) color", 2);
+            if (editing.type == StudioPreset.BARS) {
+                slider(content, "A/B/C line gap (dp)", 0, 4, editing.lineSpacing, value -> {
+                    editing.lineSpacing = value; updatePreview();
+                });
+                info(content, "Exactly three narrow lines inside each bar group: "
+                        + "A = first (left), B = second (middle), C = third (right). "
+                        + "Each responds independently. Music mode gently pulses the "
+                        + "same colors without swapping them. Old single/two-color "
+                        + "bars are still available.");
+            } else if (editing.type == StudioPreset.WAVE) {
+                info(content, "WAVE SHAPE & EFFECTS");
+                slider(content, "Wave vertical baseline (%)", 10, 95,
+                        editing.waveBaseline, value -> {
+                    editing.waveBaseline = value; updatePreview();
+                });
+                slider(content, "Wave amplitude (%)", 10, 180,
+                        editing.waveAmplitude, value -> {
+                    editing.waveAmplitude = value; updatePreview();
+                });
+                slider(content, "Wave stroke (dp, 0 = original)", 0, 18,
+                        editing.waveStroke, value -> {
+                    editing.waveStroke = value; updatePreview();
+                });
+                slider(content, "Wave curve smoothing (%)", 0, 100,
+                        editing.waveSmoothness, value -> {
+                    editing.waveSmoothness = value; updatePreview();
+                });
+                slider(content, "Wave glow (%)", 0, 100,
+                        editing.waveGlow, value -> {
+                    editing.waveGlow = value; updatePreview();
+                });
+                slider(content, "Wave opacity (%)", 10, 100,
+                        editing.waveOpacity, value -> {
+                    editing.waveOpacity = value; updatePreview();
+                });
+                info(content, "These options modify Wave appearance only, not "
+                        + "music capture, FFT levels, bar position or the legacy "
+                        + "PulseWave equalizer.");
+            }
             slider(content, "Music flow strength", 0, 100, editing.flowStrength, value -> {
                 editing.flowStrength = value; updatePreview();
             });
-            info(content, "Bars: three colored lines occupy each SAME bar position. "
-                    + "Each line listens to a nearby audio frequency and can reach a "
-                    + "different length. The longer line shows at its tip; shorter "
-                    + "lines overlap in front. Music Color Flow rotates the line colors "
-                    + "with the existing beats. Wave stays unchanged. Demo audio is simulated.");
         } else if (editing.type == StudioPreset.PHOTO) {
             Button choose = button("Choose a photo", true);
             choose.setOnClickListener(v -> choosePhoto());
