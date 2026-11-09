@@ -137,8 +137,29 @@ final class StudioAudioRenderer {
     }
 
     /**
-     * One shared renderer: static 1/2/3 colors and FFT-driven three-color flow.
-     * The optional direction changes only Bars, never FFT processing or Wave.
+     * Two adjustable section boundaries within ONE bar. Nearby audio bands and
+     * the existing music-color phase vary section length, not the audio itself.
+     * A, B and C are always visible in order when a sufficiently tall bar rises.
+     */
+    static void layeredFractions(float base, float right, float left, float phase,
+            int aPercent, int bPercent, int movement, float[] out) {
+        if (out == null || out.length < 2) {
+            throw new IllegalArgumentException("Two output boundaries required");
+        }
+        float motion = StudioPreset.clamp(movement, 0, 100) / 100f;
+        float pulse = (float) Math.sin(
+                2.0 * Math.PI * MusicColorFlow.wrap(phase));
+        float a = StudioPreset.clamp(aPercent, 5, 70) / 100f
+                + motion * (.42f * (right - base) + .13f * pulse);
+        float b = StudioPreset.clamp(bPercent, aPercent + 5, 95) / 100f
+                + motion * (.33f * (left - base) - .09f * pulse);
+        out[0] = Math.max(.07f, Math.min(.83f, a));
+        out[1] = Math.max(out[0] + .08f, Math.min(.96f, b));
+    }
+
+    /**
+     * Shared renderer: original legacy, 3 side-by-side channels, and Muviz-like
+     * stacked A/B/C segments are separate modes. FFT/music sync unchanged.
      */
     static void draw(Canvas canvas, Paint paint, Path path, int width, int height,
             float barWidthPx, float gapPx, float density, float[] levels, int mode,
@@ -170,10 +191,15 @@ final class StudioAudioRenderer {
         float barWidth = Math.max(1f, step - gap);
         boolean twoTone = colorMode == StudioPreset.COLOR_TWO;
         boolean multiColor = colorMode == StudioPreset.COLOR_THREE
-                || colorMode == StudioPreset.COLOR_MUSIC_FLOW;
+                || colorMode == StudioPreset.COLOR_MUSIC_FLOW
+                || colorMode == StudioPreset.COLOR_STACKED;
+        boolean stackedColors = mode == StudioPreset.BARS
+                && colorMode == StudioPreset.COLOR_STACKED;
+        float[] stackBreaks = stackedColors ? new float[2] : null;
         // Reuse one color array and shared per-group geometry. Every channel
         // occupies its own x slot so A/B/C can all be visible independently.
-        boolean threeChannels = mode == StudioPreset.BARS && multiColor;
+        boolean threeChannels = mode == StudioPreset.BARS && multiColor
+                && !stackedColors;
         int[] overlaidColors = threeChannels ? new int[] {
                 overlaidColor(0, primary, accent, third, colorMode, flowPhase),
                 overlaidColor(1, primary, accent, third, colorMode, flowPhase),
@@ -251,6 +277,48 @@ final class StudioAudioRenderer {
                 paint.setColor(primary);
                 canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
                 canvas.restoreToCount(saved);
+                paint.setAntiAlias(antialias);
+            } else if (stackedColors) {
+                // Muviz video: cyan, white and pink occupy the SAME bar width.
+                // Independently changing split lengths reveal all colors from
+                // the top toward the tip, without repeating a full gradient.
+                if (barHeight <= 0f) continue;
+                float nearB = overlaidLevel(levels, i, 1);
+                float nearC = overlaidLevel(levels, i, 2);
+                layeredFractions(level, nearB, nearC, flowPhase,
+                        style == null ? 33 : style.layerASplit,
+                        style == null ? 68 : style.layerBSplit,
+                        style == null ? 85 : style.layerMotion, stackBreaks);
+                float radius = Math.min((right - left) * .5f, barHeight * .5f);
+                boolean antialias = paint.isAntiAlias();
+                paint.setAntiAlias(true);
+                paint.setShader(null);
+                // Paint C as the full silhouette, then B and A on top clipped
+                // to their dynamic lengths. Outer rounded silhouette is shared.
+                paint.setColor(third);
+                canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
+                int saveB = canvas.save();
+                if (down) {
+                    canvas.clipRect(left, top, right,
+                            top + barHeight * stackBreaks[1]);
+                } else {
+                    canvas.clipRect(left, bottom - barHeight * stackBreaks[1],
+                            right, bottom);
+                }
+                paint.setColor(accent);
+                canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
+                canvas.restoreToCount(saveB);
+                int saveA = canvas.save();
+                if (down) {
+                    canvas.clipRect(left, top, right,
+                            top + barHeight * stackBreaks[0]);
+                } else {
+                    canvas.clipRect(left, bottom - barHeight * stackBreaks[0],
+                            right, bottom);
+                }
+                paint.setColor(primary);
+                canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
+                canvas.restoreToCount(saveA);
                 paint.setAntiAlias(antialias);
             } else if (threeChannels) {
                 // A, B, C are three NARROW lines, next to each other within

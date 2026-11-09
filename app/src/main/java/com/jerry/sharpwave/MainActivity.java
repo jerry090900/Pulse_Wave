@@ -2,6 +2,7 @@ package com.jerry.sharpwave;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -394,8 +395,13 @@ public class MainActivity extends Activity {
         lockPanel.addView(lockNote, matchParams(8, 0));
         addBlock(root, lockPanel, 0, 24);
 
-        section(root, "SERVICE", "Start the listener when you want PulseWave ready in the background.");
+        section(root, "SERVICE", "Keep PulseWave reacting while you use your phone.");
         LinearLayout servicePanel = panel();
+        addMotionToggle(servicePanel, "Show visualizer inside PulseWave",
+                "On by default. Keep the top bars visible while you open settings "
+                        + "or Studio. Turn off if they cover important controls.",
+                Prefs.KEY_SHOW_INSIDE_APP, Prefs.showInsideApp(this));
+        addDivider(servicePanel);
         Button start = primaryButton("Start PulseWave");
         start.setOnClickListener(v -> {
             requestRuntimePermissions();
@@ -417,6 +423,26 @@ public class MainActivity extends Activity {
             startService(i);
         });
         servicePanel.addView(stop, matchParams(10, 0, 52));
+        Button resetVisual = secondaryButton("Reset visualizer settings");
+        resetVisual.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("Reset PulseWave visualizer settings?")
+                .setMessage("Restore the classic red/white bars, top position, "
+                        + "visualizer size, sensitivity, colors and beat controls. "
+                        + "Your saved Studio designs, selected music apps and "
+                        + "Android permissions will be kept.")
+                .setNegativeButton("Cancel", (dialog, which) -> {})
+                .setPositiveButton("Reset", (dialog, which) -> {
+                    Prefs.resetVisualSettings(this);
+                    StudioStore.clearAppliedAudio(this);
+                    refreshService();
+                    View rebuilt = buildUi();
+                    setContentView(rebuilt);
+                    rebuilt.requestApplyInsets();
+                    Toast.makeText(this, "Visualizer settings reset; saved designs kept",
+                            Toast.LENGTH_LONG).show();
+                })
+                .show());
+        servicePanel.addView(resetVisual, matchParams(10, 0, 52));
         TextView note = text("The visualizer uses Android's low-quality output-mix Visualizer API. It does not save audio or read notifications.",
                 13, color(R.color.text_secondary));
         servicePanel.addView(note, matchParams(14, 0));
