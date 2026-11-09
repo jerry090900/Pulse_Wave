@@ -71,6 +71,7 @@ final class StudioStore {
         addOverlaidStarter(results);
         addRgbStarter(results);
         addMuvizStackStarter(results);
+        addMuvizMotionStarter(results);
         return results;
     }
 
@@ -184,6 +185,33 @@ final class StudioStore {
 
     /** Easy-to-test three separate narrow bars: A on left, B center, C right. */
     /**
+     * V2 is a genuinely different rendering mode: each colored line reaches
+     * its own length at the exact same x, and may disappear entirely on beats.
+     * Existing saved scenes and the old stacked preset are never overwritten.
+     */
+    private static StudioPreset muvizMotionStarter() {
+        StudioPreset p = StudioPreset.template("pw_muviz_rgb_motion_v2",
+                "Muviz-inspired Motion V2", StudioPreset.BARS);
+        p.primary = 0xFF00D8FC;
+        p.accent = 0xFFF6E8FF;
+        p.third = 0xFFFF1686;
+        p.setColorMode(StudioPreset.COLOR_TRIPLE_MOTION);
+        p.width = 5;
+        p.gap = 1;
+        p.layerMotion = 100;
+        p.flowStrength = 90;
+        return p;
+    }
+
+    private static void addMuvizMotionStarter(List<StudioPreset> list) {
+        if (list.size() >= MAX_PRESETS) return;
+        for (StudioPreset item : list) {
+            if ("pw_muviz_rgb_motion_v2".equals(item.id)) return;
+        }
+        list.add(muvizMotionStarter());
+    }
+
+    /**
      * Stacked A/B/C colors on ONE bar, with live FFT-controlled section lengths.
      * Separate opt-in preset: no older styles are overwritten or migrated.
      */
@@ -296,6 +324,7 @@ final class StudioStore {
         presets.add(overlaidStarter());
         presets.add(rgbStarter());
         presets.add(muvizStackStarter());
+        presets.add(muvizMotionStarter());
         return presets;
     }
 }
