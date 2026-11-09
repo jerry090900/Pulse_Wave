@@ -37,6 +37,8 @@ final class Prefs {
     static final String KEY_BEAT_SYNC_SUPPORT = "beat_sync_support";
     static final String KEY_ADAPTIVE_RESPONSE = "adaptive_visual_response";
     static final String KEY_RESPONSE_PROFILE = "visual_response_profile";
+    // On by default: overlay continues while the user opens PulseWave to inspect it.
+    static final String KEY_SHOW_INSIDE_APP = "show_visualizer_inside_app";
 
     private Prefs() {}
 
@@ -101,5 +103,33 @@ final class Prefs {
     static int responseProfile(Context c) {
         return Math.max(BeatSyncSupport.SMOOTH, Math.min(BeatSyncSupport.PUNCHY,
                 get(c).getInt(KEY_RESPONSE_PROFILE, BeatSyncSupport.BALANCED)));
+    }
+
+    static boolean showInsideApp(Context c) {
+        return get(c).getBoolean(KEY_SHOW_INSIDE_APP, true);
+    }
+
+    /**
+     * Reset presentation controls, not user-created Studio scenes, selected apps,
+     * signing identity, permissions, or app data. No SharedPreferences.clear().
+     */
+    static void resetVisualSettings(Context c) {
+        get(c).edit()
+                .remove(KEY_SPIKE_WIDTH)
+                .remove(KEY_GAP)
+                .remove(KEY_HEIGHT)
+                .remove(KEY_SENSITIVITY)
+                .remove(KEY_PALETTE)
+                .remove(KEY_OVERLAY_POSITION)
+                .remove(KEY_CENTER_BASS)
+                .remove(KEY_SINGLE_COLOR)
+                .remove(KEY_BASS_GAIN)
+                .remove(KEY_AS_PLAYED)
+                .remove(KEY_LOCK_SCREEN)
+                .remove(KEY_BEAT_SYNC_SUPPORT)
+                .remove(KEY_ADAPTIVE_RESPONSE)
+                .remove(KEY_RESPONSE_PROFILE)
+                .remove(KEY_SHOW_INSIDE_APP)
+                .apply();
     }
 }
