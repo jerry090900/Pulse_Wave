@@ -1,5 +1,13 @@
 # PulseWave
 
+> **Public Android pre-release:** [Download PulseWave Preview v0.2.0](https://github.com/jerry090900/Pulse_Wave/releases/tag/v0.2.0-preview).
+>
+> This release uses the `com.jerry.sharpwave.preview` app identity and permanent update-signing key. It is separate from the original `com.jerry.sharpwave` app. **Do not uninstall your existing signed Preview when updating.**
+>
+> The release's current source code and development features are on [`preview/updateable`](https://github.com/jerry090900/Pulse_Wave/tree/preview/updateable), while this `main` branch retains the earlier baseline. Future preview releases will receive new version tags and APK assets.
+>
+> **Status:** Experimental visualizer; on-phone visual matching and compatibility testing remain in progress. See the release notes and known limitations before installing.
+
 PulseWave is a small open-source Android audio visualizer overlay built around the requested design:
 
 - **sharp triangular spikes** (no rounded ends)
