@@ -18,7 +18,11 @@
 
 ## Screenshots
 
-A clean screenshot of version 0.2.0 is being captured from an Android emulator and will appear here after verification. This is separate from the real Nothing Phone visual test.
+![PulseWave Preview v0.2.0 running in a clean Android emulator](docs/screenshots/pulsewave-v0.2.0-emulator-home.png)
+
+*Genuine v0.2.0 main-screen screenshot on a clean Android 15 emulator. No real music was playing in the emulator; the Live Visualizer card demonstrates the interface, not verified live music response. Appearance on Nothing Phone and other devices may vary.*
+
+[View the full screenshot](https://github.com/jerry090900/Pulse_Wave/releases/download/v0.2.0-preview/pulsewave-v0.2.0-emulator-home.png)
 
 ## Installation and updates
 
