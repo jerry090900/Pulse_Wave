@@ -326,7 +326,8 @@ public class SharpVisualizerView extends View {
                 : StudioAudioRenderer.useTwoColors(false, studioTwoTone, solidBars)
                         ? StudioPreset.COLOR_TWO : StudioPreset.COLOR_SOLID;
         float colorPhase = (colorMode == StudioPreset.COLOR_MUSIC_FLOW
-                || colorMode == StudioPreset.COLOR_STACKED)
+                || colorMode == StudioPreset.COLOR_STACKED
+                || colorMode == StudioPreset.COLOR_TRIPLE_MOTION)
                 ? musicColorFlow.update(smoothed, now, studioFlowStrength) : 0f;
         int primary = studioColorsActive
                 ? studioPrimary : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0];
