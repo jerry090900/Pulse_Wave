@@ -37,6 +37,9 @@ final class StudioStore {
                 p.third = item.optInt("third", 0xFF19CFFA);
                 p.flowStrength = item.optInt("flowStrength", 80);
                 p.lineSpacing = item.optInt("lineSpacing", 1);
+                p.layerASplit = item.optInt("layerASplit", 33);
+                p.layerBSplit = item.optInt("layerBSplit", 68);
+                p.layerMotion = item.optInt("layerMotion", 85);
                 p.waveBaseline = item.optInt("waveBaseline", 82);
                 p.waveAmplitude = item.optInt("waveAmplitude", 100);
                 p.waveStroke = item.optInt("waveStroke", 0);
@@ -67,6 +70,7 @@ final class StudioStore {
         addFlowStarter(results);
         addOverlaidStarter(results);
         addRgbStarter(results);
+        addMuvizStackStarter(results);
         return results;
     }
 
@@ -134,6 +138,9 @@ final class StudioStore {
                 item.put("colorMode", p.effectiveColorMode());
                 item.put("flowStrength", p.flowStrength);
                 item.put("lineSpacing", p.lineSpacing);
+                item.put("layerASplit", p.layerASplit);
+                item.put("layerBSplit", p.layerBSplit);
+                item.put("layerMotion", p.layerMotion);
                 item.put("waveBaseline", p.waveBaseline);
                 item.put("waveAmplitude", p.waveAmplitude);
                 item.put("waveStroke", p.waveStroke);
@@ -176,6 +183,33 @@ final class StudioStore {
     }
 
     /** Easy-to-test three separate narrow bars: A on left, B center, C right. */
+    /**
+     * Stacked A/B/C colors on ONE bar, with live FFT-controlled section lengths.
+     * Separate opt-in preset: no older styles are overwritten or migrated.
+     */
+    private static StudioPreset muvizStackStarter() {
+        StudioPreset p = StudioPreset.template("pw_muviz_layered_20261109",
+                "Muviz-style Color Layers", StudioPreset.BARS);
+        p.primary = 0xFF00D8FC;
+        p.accent = 0xFFF6E8FF;
+        p.third = 0xFFFF1686;
+        p.setColorMode(StudioPreset.COLOR_STACKED);
+        p.width = 5;
+        p.gap = 1;
+        p.layerASplit = 33;
+        p.layerBSplit = 68;
+        p.layerMotion = 85;
+        return p;
+    }
+
+    private static void addMuvizStackStarter(List<StudioPreset> list) {
+        if (list.size() >= MAX_PRESETS) return;
+        for (StudioPreset p : list) {
+            if ("pw_muviz_layered_20261109".equals(p.id)) return;
+        }
+        list.add(muvizStackStarter());
+    }
+
     private static StudioPreset rgbStarter() {
         StudioPreset p = StudioPreset.template("pw_three_individual_lines",
                 "3 Separate Lines A/B/C", StudioPreset.BARS);
@@ -261,6 +295,7 @@ final class StudioStore {
         presets.add(flowStarter());
         presets.add(overlaidStarter());
         presets.add(rgbStarter());
+        presets.add(muvizStackStarter());
         return presets;
     }
 }
