@@ -21,7 +21,11 @@ The first public **pre-release** of PulseWave, an open-source Android music visu
 - This is **not yet a stable 1.0 release**. The three-color effect is still being compared with a user-supplied Muviz reference, and visual similarity is not guaranteed.
 - The app uses Android's output-mix Visualizer API; music capture, Bluetooth response, lock-screen overlays and status bar behavior vary by device.
 - Studio playback is simulated; phone verification is still required for real audio synchronization and Android notification Off behavior.
-- Screenshots in the repository are from earlier development builds and are labeled accordingly; the current 0.2.0 interface may differ.
+- The real 0.2.0 home screen is captured on a clean Android 15 emulator below. This is a UI screenshot, **not proof of live music visualization**, and actual Nothing Phone overlays may differ.
+
+### Screenshot (clean Android emulator)
+
+![PulseWave Preview v0.2.0 home screen](https://github.com/jerry090900/Pulse_Wave/releases/download/v0.2.0-preview/pulsewave-v0.2.0-emulator-home.png)
 - No association with or endorsement by the Muviz app.
 
 ### Verification
