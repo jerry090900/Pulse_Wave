@@ -93,15 +93,16 @@ final class StudioPreset {
     static final int COLOR_TWO = 1;
     static final int COLOR_THREE = 2;
     static final int COLOR_MUSIC_FLOW = 3;
-    static final int COLOR_STACKED = 4; // Color segments share EXACT same x slot
+    static final int COLOR_STACKED = 4; // Legacy static three-color sections.
+    static final int COLOR_TRIPLE_MOTION = 5; // Independent same-slot color reaches.
 
     int effectiveColorMode() {
         return colorMode < 0 ? (twoTone ? COLOR_TWO : COLOR_SOLID)
-                : clamp(colorMode, COLOR_SOLID, COLOR_STACKED);
+                : clamp(colorMode, COLOR_SOLID, COLOR_TRIPLE_MOTION);
     }
 
     void setColorMode(int mode) {
-        colorMode = clamp(mode, COLOR_SOLID, COLOR_STACKED);
+        colorMode = clamp(mode, COLOR_SOLID, COLOR_TRIPLE_MOTION);
         twoTone = colorMode != COLOR_SOLID; // Compatibility with previous presets.
     }
 

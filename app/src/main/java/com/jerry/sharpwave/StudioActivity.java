@@ -167,7 +167,8 @@ public final class StudioActivity extends Activity {
             String[] labels = {
                     "One color", "Two colors (classic)", "3 overlapping color lines",
                     "3 separate lines • Beat pulse A/B/C",
-                    "Stacked A/B/C colors • Muviz-like"
+                    "Stacked A/B/C (older fixed sections)",
+                    "Motion V2 • 3 independent color lengths"
             };
             for (int i = 0; i < labels.length; i++) {
                 RadioButton option = new RadioButton(this);
@@ -188,16 +189,16 @@ public final class StudioActivity extends Activity {
             swatch(content, "Color B • White / middle", 1);
             swatch(content, "Color C • Pink / tip", 2);
             if (editing.type == StudioPreset.BARS) {
-                info(content, "MUVIZ-LIKE COLOR LAYERS");
-                slider(content, "Color A section (%)", 5, 70,
+                info(content, "THREE-COLOR LAYER CONTROL");
+                slider(content, "Older stacked style: Color A section (%)", 5, 70,
                         editing.layerASplit, value -> {
                     editing.layerASplit = value; updatePreview();
                 });
-                slider(content, "Color B ends at (%)", 15, 95,
+                slider(content, "Older stacked style: Color B ends at (%)", 15, 95,
                         editing.layerBSplit, value -> {
                     editing.layerBSplit = value; updatePreview();
                 });
-                slider(content, "Music movement of color boundaries (%)", 0, 100,
+                slider(content, "Movement / independent color layers (%)", 0, 100,
                         editing.layerMotion, value -> {
                     editing.layerMotion = value; updatePreview();
                 });
@@ -205,11 +206,13 @@ public final class StudioActivity extends Activity {
                         editing.lineSpacing, value -> {
                     editing.lineSpacing = value; updatePreview();
                 });
-                info(content, "Choose Stacked A/B/C for the Muviz-inspired effect: "
-                        + "all three color sections share ONE vertical line. "
-                        + "The cyan/white/pink breakpoints change with nearby "
-                        + "music frequencies and beats. Your previous 3 separate "
-                        + "lines remain available as another option.");
+                info(content, "Choose Motion V2 to get three color reaches at "
+                        + "EXACTLY the same line position: cyan, white and pink "
+                        + "can grow to different lengths, sometimes leaving just "
+                        + "one color visible. Music flow uses the existing beat "
+                        + "signal. Movement 0 gives fixed segments, 100 gives "
+                        + "the strongest color variation. Older stacked and "
+                        + "side-by-side modes are still available.");
             } else if (editing.type == StudioPreset.WAVE) {
                 info(content, "WAVE SHAPE & EFFECTS");
                 slider(content, "Wave vertical baseline (%)", 10, 95,

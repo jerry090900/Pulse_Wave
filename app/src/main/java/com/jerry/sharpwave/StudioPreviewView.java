@@ -129,7 +129,8 @@ final class StudioPreviewView extends View {
         canvas.translate(0, y);
         int colorMode = preset.effectiveColorMode();
         float colorPhase = (colorMode == StudioPreset.COLOR_MUSIC_FLOW
-                || colorMode == StudioPreset.COLOR_STACKED) && animated
+                || colorMode == StudioPreset.COLOR_STACKED
+                || colorMode == StudioPreset.COLOR_TRIPLE_MOTION) && animated
                 ? demoColorFlow.update(levels, SystemClock.uptimeMillis(),
                         preset.flowStrength) : 0f;
         StudioAudioRenderer.draw(canvas, paint, path, width, bandHeight,
