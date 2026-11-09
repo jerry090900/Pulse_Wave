@@ -80,7 +80,11 @@ jobs:
           set -euo pipefail
           source .github/release-pins/current.env
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists; leaving it unchanged."
+            # Notes/screenshots can be refreshed without ever replacing a signed APK,
+            # moving the version tag, or silently publishing new code.
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --notes-file ".github/release-pins/notes.md"
+            echo "Existing release $RELEASE_TAG: notes updated; signed APK and tag untouched."
             exit 0
           fi
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
