@@ -21,6 +21,10 @@ final class StudioPreset {
     int flowStrength = 80;
     // Three side-by-side audio lines: fixed A / B / C identities.
     int lineSpacing = 1;
+    // Color-stack mode: A/B/C share one bar; split points shift per FFT band.
+    int layerASplit = 33;
+    int layerBSplit = 68;
+    int layerMotion = 85;
     // Optional Wave-only appearance controls. Defaults reproduce the old Wave.
     int waveBaseline = 82;     // vertical baseline, percent of overlay height
     int waveAmplitude = 100;   // percent of the original 72%-height response
@@ -57,6 +61,9 @@ final class StudioPreset {
         p.colorMode = colorMode;
         p.flowStrength = flowStrength;
         p.lineSpacing = lineSpacing;
+        p.layerASplit = layerASplit;
+        p.layerBSplit = layerBSplit;
+        p.layerMotion = layerMotion;
         p.waveBaseline = waveBaseline;
         p.waveAmplitude = waveAmplitude;
         p.waveStroke = waveStroke;
@@ -86,14 +93,15 @@ final class StudioPreset {
     static final int COLOR_TWO = 1;
     static final int COLOR_THREE = 2;
     static final int COLOR_MUSIC_FLOW = 3;
+    static final int COLOR_STACKED = 4; // Color segments share EXACT same x slot
 
     int effectiveColorMode() {
         return colorMode < 0 ? (twoTone ? COLOR_TWO : COLOR_SOLID)
-                : clamp(colorMode, COLOR_SOLID, COLOR_MUSIC_FLOW);
+                : clamp(colorMode, COLOR_SOLID, COLOR_STACKED);
     }
 
     void setColorMode(int mode) {
-        colorMode = clamp(mode, COLOR_SOLID, COLOR_MUSIC_FLOW);
+        colorMode = clamp(mode, COLOR_SOLID, COLOR_STACKED);
         twoTone = colorMode != COLOR_SOLID; // Compatibility with previous presets.
     }
 
@@ -127,6 +135,9 @@ final class StudioPreset {
         opacity = clamp(opacity, 15, 100);
         flowStrength = clamp(flowStrength, 0, 100);
         lineSpacing = clamp(lineSpacing, 0, 4);
+        layerASplit = clamp(layerASplit, 5, 70);
+        layerBSplit = clamp(layerBSplit, layerASplit + 5, 95);
+        layerMotion = clamp(layerMotion, 0, 100);
         waveBaseline = clamp(waveBaseline, 10, 95);
         waveAmplitude = clamp(waveAmplitude, 10, 180);
         waveStroke = clamp(waveStroke, 0, 18);
