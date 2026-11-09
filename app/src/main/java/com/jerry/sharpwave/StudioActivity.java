@@ -166,7 +166,8 @@ public final class StudioActivity extends Activity {
             RadioGroup colorModes = new RadioGroup(this);
             String[] labels = {
                     "One color", "Two colors (classic)", "3 overlapping color lines",
-                    "3 separate lines • Beat pulse A/B/C"
+                    "3 separate lines • Beat pulse A/B/C",
+                    "Stacked A/B/C colors • Muviz-like"
             };
             for (int i = 0; i < labels.length; i++) {
                 RadioButton option = new RadioButton(this);
@@ -183,18 +184,32 @@ public final class StudioActivity extends Activity {
             });
             content.addView(colorModes, match(0, 10));
             info(content, "Tap a color to edit its hue, saturation, brightness or exact HEX.");
-            swatch(content, "Line 1 (A / Left) color", 0);
-            swatch(content, "Line 2 (B / Center) color", 1);
-            swatch(content, "Line 3 (C / Right) color", 2);
+            swatch(content, "Color A • Cyan / start", 0);
+            swatch(content, "Color B • White / middle", 1);
+            swatch(content, "Color C • Pink / tip", 2);
             if (editing.type == StudioPreset.BARS) {
-                slider(content, "A/B/C line gap (dp)", 0, 4, editing.lineSpacing, value -> {
+                info(content, "MUVIZ-LIKE COLOR LAYERS");
+                slider(content, "Color A section (%)", 5, 70,
+                        editing.layerASplit, value -> {
+                    editing.layerASplit = value; updatePreview();
+                });
+                slider(content, "Color B ends at (%)", 15, 95,
+                        editing.layerBSplit, value -> {
+                    editing.layerBSplit = value; updatePreview();
+                });
+                slider(content, "Music movement of color boundaries (%)", 0, 100,
+                        editing.layerMotion, value -> {
+                    editing.layerMotion = value; updatePreview();
+                });
+                slider(content, "A/B/C separate-line gap (dp)", 0, 4,
+                        editing.lineSpacing, value -> {
                     editing.lineSpacing = value; updatePreview();
                 });
-                info(content, "Exactly three narrow lines inside each bar group: "
-                        + "A = first (left), B = second (middle), C = third (right). "
-                        + "Each responds independently. Music mode gently pulses the "
-                        + "same colors without swapping them. Old single/two-color "
-                        + "bars are still available.");
+                info(content, "Choose Stacked A/B/C for the Muviz-inspired effect: "
+                        + "all three color sections share ONE vertical line. "
+                        + "The cyan/white/pink breakpoints change with nearby "
+                        + "music frequencies and beats. Your previous 3 separate "
+                        + "lines remain available as another option.");
             } else if (editing.type == StudioPreset.WAVE) {
                 info(content, "WAVE SHAPE & EFFECTS");
                 slider(content, "Wave vertical baseline (%)", 10, 95,
