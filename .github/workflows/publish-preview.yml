@@ -1,0 +1,93 @@
+name: Publish verified PulseWave Preview release
+
+on:
+  push:
+    branches: [ "preview/updateable" ]
+    paths:
+      - ".github/workflows/publish-preview.yml"
+      - ".github/release-pins/current.env"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: pulsewave-public-preview-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Never run release publishing from PRs, forks, main, or arbitrary branches.
+    if: github.repository == 'jerry090900/Pulse_Wave' && github.ref == 'refs/heads/preview/updateable'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read and validate the immutable release pins
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .github/release-pins/current.env
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-preview$ ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$APK_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$CERT_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]
+          echo "run_id=$SOURCE_RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download original signed artifact from the pinned successful build
+        uses: actions/download-artifact@v4
+        with:
+          name: PulseWave-Preview-UPDATEABLE-apk
+          run-id: ${{ steps.pin.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: dist
+
+      - uses: android-actions/setup-android@v3
+      - name: Install Android package verification tools
+        run: sdkmanager "build-tools;36.0.0"
+
+      - name: Verify pinned APK hash, package, version and signing identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .github/release-pins/current.env
+          test -s dist/app-debug.apk
+          echo "$APK_SHA256  dist/app-debug.apk" | sha256sum -c -
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging dist/app-debug.apk > /tmp/pulsewave-release-badging.txt
+          grep -Fq "name='com.jerry.sharpwave.preview'" /tmp/pulsewave-release-badging.txt
+          grep -Fq "versionCode='$VERSION_CODE'" /tmp/pulsewave-release-badging.txt
+          grep -Fq "versionName='$VERSION_NAME'" /tmp/pulsewave-release-badging.txt
+          ACTUAL=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs \
+            dist/app-debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          if [[ "$ACTUAL" != "$CERT_SHA256" ]]; then
+            echo "::error::Signing certificate differs from the pinned permanent Preview identity."
+            exit 1
+          fi
+          echo "Verified package, version, hash and persistent signing certificate."
+          mv dist/app-debug.apk "dist/PulseWave-Preview-${RELEASE_TAG%-preview}.apk"
+
+      - name: Publish a prerelease without replacing existing releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          source .github/release-pins/current.env
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; leaving it unchanged."
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Tag exists without a release. Review manually; never move an existing tag."
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" \
+            "dist/PulseWave-Preview-${RELEASE_TAG%-preview}.apk" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_SHA" \
+            --title "PulseWave Preview ${RELEASE_TAG#v}" \
+            --notes-file ".github/release-pins/notes.md" \
+            --prerelease
