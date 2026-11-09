@@ -192,14 +192,19 @@ final class StudioAudioRenderer {
         boolean twoTone = colorMode == StudioPreset.COLOR_TWO;
         boolean multiColor = colorMode == StudioPreset.COLOR_THREE
                 || colorMode == StudioPreset.COLOR_MUSIC_FLOW
-                || colorMode == StudioPreset.COLOR_STACKED;
+                || colorMode == StudioPreset.COLOR_STACKED
+                || colorMode == StudioPreset.COLOR_TRIPLE_MOTION;
         boolean stackedColors = mode == StudioPreset.BARS
                 && colorMode == StudioPreset.COLOR_STACKED;
         float[] stackBreaks = stackedColors ? new float[2] : null;
+        boolean tripleMotion = mode == StudioPreset.BARS
+                && colorMode == StudioPreset.COLOR_TRIPLE_MOTION;
+        // Reused by all bar groups: no per-bar object allocations.
+        float[] tripleReaches = tripleMotion ? new float[3] : null;
         // Reuse one color array and shared per-group geometry. Every channel
         // occupies its own x slot so A/B/C can all be visible independently.
         boolean threeChannels = mode == StudioPreset.BARS && multiColor
-                && !stackedColors;
+                && !stackedColors && !tripleMotion;
         int[] overlaidColors = threeChannels ? new int[] {
                 overlaidColor(0, primary, accent, third, colorMode, flowPhase),
                 overlaidColor(1, primary, accent, third, colorMode, flowPhase),
@@ -278,6 +283,30 @@ final class StudioAudioRenderer {
                 canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint);
                 canvas.restoreToCount(saved);
                 paint.setAntiAlias(antialias);
+            } else if (tripleMotion) {
+                // Reference: three audio-driven colors share ONE exact bar slot.
+                // Unlike COLOR_STACKED, any color can nearly disappear, leaving
+                // single-color and two-color moments as the music changes.
+                if (barHeight <= 0f) continue;
+                TripleLayerMotion.reaches(levels, i, flowPhase,
+                        style == null ? 100 : style.layerMotion, tripleReaches);
+                boolean oldAntialias = paint.isAntiAlias();
+                paint.setAntiAlias(true);
+                paint.setShader(null);
+                // Draw C behind B behind A: A near the shared top edge, then B,
+                // then C at the tip when their independently moving heights allow.
+                // Each layer is precisely the same x coordinate / bar width.
+                for (int layer = 2; layer >= 0; layer--) {
+                    float reach = tripleReaches[layer] * height;
+                    if (reach <= .001f) continue;
+                    float layerTop = down ? 0f : height - reach;
+                    float layerBottom = down ? reach : height;
+                    float radius = Math.min((right - left) * .50f, reach * .50f);
+                    paint.setColor(layer == 0 ? primary : layer == 1 ? accent : third);
+                    canvas.drawRoundRect(left, layerTop, right, layerBottom,
+                            radius, radius, paint);
+                }
+                paint.setAntiAlias(oldAntialias);
             } else if (stackedColors) {
                 // Muviz video: cyan, white and pink occupy the SAME bar width.
                 // Independently changing split lengths reveal all colors from
