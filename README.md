@@ -8,6 +8,15 @@
 >
 > **Status:** Experimental visualizer; on-phone visual matching and compatibility testing remain in progress. See the release notes and known limitations before installing.
 
+### Preview screenshot
+
+<img src="https://raw.githubusercontent.com/jerry090900/Pulse_Wave/preview/updateable/docs/screenshots/pulsewave-v0.2.0-emulator-home.png" width="320" alt="PulseWave Preview 0.2.0 home screen captured in a clean Android emulator">
+
+*Actual 0.2.0 emulator screenshot; real-music visual effects and device overlays still need phone testing.*
+
+See [new Preview features and development instructions](https://github.com/jerry090900/Pulse_Wave/blob/preview/updateable/README.md).
+
+
 PulseWave is a small open-source Android audio visualizer overlay built around the requested design:
 
 - **sharp triangular spikes** (no rounded ends)
