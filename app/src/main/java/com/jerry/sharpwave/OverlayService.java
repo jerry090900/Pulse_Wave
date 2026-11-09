@@ -5,6 +5,7 @@ import android.app.KeyguardManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
@@ -54,7 +55,7 @@ public class OverlayService extends Service {
     private static volatile OverlayService activeInstance;
     private static volatile boolean appUiVisible;
 
-    /** Activity lifecycle signal; keeps the audio capture running, hides only overlay artwork. */
+    /** Activity lifecycle signal; overlay visibility now obeys the user's preference. */
     static void setAppUiVisible(boolean visible) {
         appUiVisible = visible;
         OverlayService instance = activeInstance;
@@ -66,8 +67,8 @@ public class OverlayService extends Service {
     }
 
     static boolean shouldHideOverlayInApp(boolean uiVisible, boolean locked,
-            boolean explicitPreview) {
-        return uiVisible && !locked && !explicitPreview;
+            boolean explicitPreview, boolean showInsideApp) {
+        return uiVisible && !locked && !explicitPreview && !showInsideApp;
     }
 
     public static boolean isRunning() {
@@ -602,9 +603,10 @@ public class OverlayService extends Service {
             return;
         }
 
-        // Do not draw over PulseWave's own Gallery/Editor and settings.
-        // An explicitly requested five-second test preview remains visible.
-        if (shouldHideOverlayInApp(appUiVisible, keyguardLocked, previewActive)) {
+        // Respect the user's in-app visibility preference. Keep Android audio
+        // callbacks running: opening our app must not silently disable the visualizer.
+        if (shouldHideOverlayInApp(appUiVisible, keyguardLocked,
+                previewActive, Prefs.showInsideApp(this))) {
             closeLockScreenHost();
             hideOverlay();
             stopPreviewTicker();
@@ -922,11 +924,26 @@ public class OverlayService extends Service {
         nm.createNotificationChannel(channel);
     }
 
+    /** Explicit service action: tap Off to stop the current overlay and notification. */
+    private PendingIntent notificationStopAction() {
+        Intent stop = new Intent(this, OverlayService.class).setAction(ACTION_STOP);
+        return PendingIntent.getService(this, NOTIFICATION_ID + 1, stop,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
     private Notification buildNotification(String text) {
+        PendingIntent openApp = PendingIntent.getActivity(this, NOTIFICATION_ID,
+                new Intent(this, MainActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentTitle("PulseWave")
                 .setContentText(text)
+                .setContentIntent(openApp)
+                .addAction(new Notification.Action.Builder(
+                        android.R.drawable.ic_media_pause, "Off",
+                        notificationStopAction()).build())
                 .setOngoing(true)
                 .build();
     }
