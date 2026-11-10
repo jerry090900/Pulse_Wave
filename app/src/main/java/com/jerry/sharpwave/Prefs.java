@@ -22,6 +22,8 @@ final class Prefs {
     static final String KEY_LOCK_SCREEN = "lock_screen_experimental";
     // New defaults affect presentation only. Legacy prefs remain unchanged for existing installs.
     static final String KEY_OVERLAY_POSITION = "overlay_position";
+    private static final String KEY_PREVIEW_TOP_EDGE_MIGRATION =
+            "preview_top_edge_restored_20261107";
     static final int POSITION_TOP = 0;
     static final int POSITION_CENTER = 1;
     static final int POSITION_BOTTOM = 2;
@@ -31,6 +33,8 @@ final class Prefs {
     static final String KEY_AS_PLAYED = "capture_as_played";
     // Optional, user-enabled media-session detection: no notification contents collected.
     static final String KEY_MEDIA_SESSION_DETECTION = "media_session_detection";
+    // On by default: overlay continues while the user opens PulseWave to inspect it.
+    static final String KEY_SHOW_INSIDE_APP = "show_visualizer_inside_app";
 
     private Prefs() {}
 
@@ -58,8 +62,21 @@ final class Prefs {
     static boolean lockScreenEnabled(Context c) { return get(c).getBoolean(KEY_LOCK_SCREEN, false); }
 
     static int overlayPosition(Context c) {
-        int p = get(c).getInt(KEY_OVERLAY_POSITION, POSITION_CENTER);
-        return p >= POSITION_TOP && p <= POSITION_BOTTOM ? p : POSITION_CENTER;
+        int p = get(c).getInt(KEY_OVERLAY_POSITION, POSITION_TOP);
+        return p >= POSITION_TOP && p <= POSITION_BOTTOM ? p : POSITION_TOP;
+    }
+
+    /**
+     * Apply the explicitly requested top-edge layout ONCE to an existing
+     * separately installed Preview. Afterward any Top/Middle/Bottom choice
+     * remains the user's own; the original PulseWave is never migrated.
+     */
+    static void restoreTopEdgeForPreviewOnce(Context c) {
+        if (!"com.jerry.sharpwave.preview".equals(c.getPackageName())) return;
+        SharedPreferences prefs = get(c);
+        if (prefs.getBoolean(KEY_PREVIEW_TOP_EDGE_MIGRATION, false)) return;
+        prefs.edit().putInt(KEY_OVERLAY_POSITION, POSITION_TOP)
+                .putBoolean(KEY_PREVIEW_TOP_EDGE_MIGRATION, true).apply();
     }
     static boolean centeredBass(Context c) { return get(c).getBoolean(KEY_CENTER_BASS, true); }
     static boolean singleColorBars(Context c) { return get(c).getBoolean(KEY_SINGLE_COLOR, false); }
@@ -69,5 +86,33 @@ final class Prefs {
     static boolean asPlayed(Context c) { return get(c).getBoolean(KEY_AS_PLAYED, true); }
     static boolean mediaSessionDetectionEnabled(Context c) {
         return get(c).getBoolean(KEY_MEDIA_SESSION_DETECTION, false);
+    }
+
+    static boolean showInsideApp(Context c) {
+        return get(c).getBoolean(KEY_SHOW_INSIDE_APP, true);
+    }
+
+    /**
+     * Reset presentation controls, not user-created Studio scenes, selected apps,
+     * signing identity, permissions, or app data. No SharedPreferences.clear().
+     */
+    static void resetVisualSettings(Context c) {
+        get(c).edit()
+                .remove(KEY_SPIKE_WIDTH)
+                .remove(KEY_GAP)
+                .remove(KEY_HEIGHT)
+                .remove(KEY_SENSITIVITY)
+                .remove(KEY_PALETTE)
+                .remove(KEY_OVERLAY_POSITION)
+                .remove(KEY_CENTER_BASS)
+                .remove(KEY_SINGLE_COLOR)
+                .remove(KEY_BASS_GAIN)
+                .remove(KEY_AS_PLAYED)
+                .remove(KEY_LOCK_SCREEN)
+                .remove("beat_sync_support")
+                .remove("adaptive_visual_response")
+                .remove("visual_response_profile")
+                .remove(KEY_SHOW_INSIDE_APP)
+                .apply();
     }
 }

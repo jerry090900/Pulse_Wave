@@ -2,6 +2,7 @@ package com.jerry.sharpwave;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -42,6 +43,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Prefs.restoreTopEdgeForPreviewOnce(this);
+        StudioStore.restoreClassicBarsOnce(this);
         View ui = buildUi();
         setContentView(ui);
         configureWindow();
@@ -158,6 +161,19 @@ public class MainActivity extends Activity {
             startActivity(new Intent(this, StudioActivity.class));
         });
         studioPanel.addView(openStudio, matchParams(4, 0, 52));
+        Button classicBars = secondaryButton("Classic equalizer • Wave off");
+        classicBars.setOnClickListener(v -> {
+            StudioStore.clearAppliedAudio(this);
+            refreshService();
+            View rebuilt = buildUi();
+            setContentView(rebuilt);
+            rebuilt.requestApplyInsets();
+            Toast.makeText(this, "Classic PulseWave bars restored", Toast.LENGTH_SHORT).show();
+        });
+        studioPanel.addView(classicBars, matchParams(8, 0, 52));
+        studioPanel.addView(text("The old red-and-white bars return. "
+                + "Wave remains available in Studio for editing.",
+                12, color(R.color.text_secondary)), matchParams(8, 0));
         addBlock(root, studioPanel, 0, 24);
 
         section(root, "ACCESS", "Give PulseWave the access it needs to listen and draw.");
@@ -258,17 +274,16 @@ public class MainActivity extends Activity {
         }
         palette.setOnCheckedChangeListener((group, checkedId) -> {
             int value = Math.max(0, checkedId - 1000);
-            Prefs.get(this).edit().putInt(Prefs.KEY_PALETTE, value).apply();
-            StudioStore.clearAppliedAudio(this);
+            StudioStore.updateAppliedPalette(this, value);
             refreshService();
         });
         controls.addView(palette, matchParams(4, 0));
         addBlock(root, controls, 0, 24);
 
         section(root, "POSITION & AUDIO RESPONSE",
-                "Move the old equalizer independently. Wave stays centered; music sync is untouched.");
+                "Top restores the original screen-edge overlay. Music sync is unchanged.");
         LinearLayout motionPanel = panel();
-        motionPanel.addView(text("Equalizer bars position (Wave stays centered)", 15, color(R.color.text)),
+        motionPanel.addView(text("Visualizer position (Bars, Spikes and Wave)", 15, color(R.color.text)),
                 matchParams(0, 6));
         RadioGroup positions = new RadioGroup(this);
         String[] positionLabels = {"Top", "Middle (recommended)", "Bottom"};
@@ -288,8 +303,8 @@ public class MainActivity extends Activity {
             refreshService();
         });
         motionPanel.addView(positions, matchParams(0, 4));
-        motionPanel.addView(text("Top: old bars grow downward from the top edge. "
-                + "Middle and Bottom keep the original bar direction.",
+        motionPanel.addView(text("Top: bars grow downward from the screen edge. "
+                + "Middle and Bottom keep upward bars. Wave follows your position setting.",
                 12, color(R.color.text_secondary)), matchParams(0, 13));
         addMotionToggle(motionPanel, "Center the bass",
                 "Low frequencies peak in the center; higher notes spread to both edges.",
@@ -344,8 +359,13 @@ public class MainActivity extends Activity {
         lockPanel.addView(lockNote, matchParams(8, 0));
         addBlock(root, lockPanel, 0, 24);
 
-        section(root, "SERVICE", "Start the listener when you want PulseWave ready in the background.");
+        section(root, "SERVICE", "Keep PulseWave reacting while you use your phone.");
         LinearLayout servicePanel = panel();
+        addMotionToggle(servicePanel, "Show visualizer inside PulseWave",
+                "On by default. Keep the top bars visible while you open settings "
+                        + "or Studio. Turn off if they cover important controls.",
+                Prefs.KEY_SHOW_INSIDE_APP, Prefs.showInsideApp(this));
+        addDivider(servicePanel);
         Button start = primaryButton("Start PulseWave");
         start.setOnClickListener(v -> {
             requestRuntimePermissions();
@@ -367,6 +387,26 @@ public class MainActivity extends Activity {
             startService(i);
         });
         servicePanel.addView(stop, matchParams(10, 0, 52));
+        Button resetVisual = secondaryButton("Reset visualizer settings");
+        resetVisual.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("Reset PulseWave visualizer settings?")
+                .setMessage("Restore the classic red/white bars, top position, "
+                        + "visualizer size, sensitivity and colors. "
+                        + "Your saved Studio designs, selected music apps and "
+                        + "Android permissions will be kept.")
+                .setNegativeButton("Cancel", (dialog, which) -> {})
+                .setPositiveButton("Reset", (dialog, which) -> {
+                    Prefs.resetVisualSettings(this);
+                    StudioStore.clearAppliedAudio(this);
+                    refreshService();
+                    View rebuilt = buildUi();
+                    setContentView(rebuilt);
+                    rebuilt.requestApplyInsets();
+                    Toast.makeText(this, "Visualizer settings reset; saved designs kept",
+                            Toast.LENGTH_LONG).show();
+                })
+                .show());
+        servicePanel.addView(resetVisual, matchParams(10, 0, 52));
         TextView note = text("The visualizer uses Android's low-quality output-mix Visualizer API. It does not save audio or read notifications.",
                 13, color(R.color.text_secondary));
         servicePanel.addView(note, matchParams(14, 0));
@@ -431,10 +471,7 @@ public class MainActivity extends Activity {
                 int value = min + progress;
                 valueLabel.setText(String.valueOf(value));
                 if (fromUser) {
-                    Prefs.get(MainActivity.this).edit().putInt(key, value).apply();
-                    if (!Prefs.KEY_BASS_GAIN.equals(key)) {
-                        StudioStore.clearAppliedAudio(MainActivity.this);
-                    }
+                    StudioStore.updateAudioSetting(MainActivity.this, key, value);
                 }
             }
 

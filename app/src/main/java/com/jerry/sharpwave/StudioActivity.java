@@ -39,7 +39,7 @@ public final class StudioActivity extends Activity {
     private EditText nameField;
     private final Button[] colorSwatches = new Button[3];
     private static final String[] COLOR_LABELS = {
-            "Color 1 • Left", "Color 2 • Middle", "Color 3 • Right"
+            "Line 1 (A / Left)", "Line 2 (B / Center)", "Line 3 (C / Right)"
     };
 
     @Override
@@ -165,8 +165,10 @@ public final class StudioActivity extends Activity {
             info(content, "LINE COLORS");
             RadioGroup colorModes = new RadioGroup(this);
             String[] labels = {
-                    "One color", "Two colors (classic)", "Three colors",
-                    "Music Color Flow • 3 colors"
+                    "One color", "Two colors (classic)", "3 overlapping color lines",
+                    "3 separate lines • Beat pulse A/B/C",
+                    "Stacked A/B/C (older fixed sections)",
+                    "Motion V2 • 3 independent color lengths"
             };
             for (int i = 0; i < labels.length; i++) {
                 RadioButton option = new RadioButton(this);
@@ -183,15 +185,67 @@ public final class StudioActivity extends Activity {
             });
             content.addView(colorModes, match(0, 10));
             info(content, "Tap a color to edit its hue, saturation, brightness or exact HEX.");
-            swatch(content, "Color 1 • Left", 0);
-            swatch(content, "Color 2 • Middle", 1);
-            swatch(content, "Color 3 • Right", 2);
+            swatch(content, "Color A • Cyan / start", 0);
+            swatch(content, "Color B • White / middle", 1);
+            swatch(content, "Color C • Pink / tip", 2);
+            if (editing.type == StudioPreset.BARS) {
+                info(content, "THREE-COLOR LAYER CONTROL");
+                slider(content, "Older stacked style: Color A section (%)", 5, 70,
+                        editing.layerASplit, value -> {
+                    editing.layerASplit = value; updatePreview();
+                });
+                slider(content, "Older stacked style: Color B ends at (%)", 15, 95,
+                        editing.layerBSplit, value -> {
+                    editing.layerBSplit = value; updatePreview();
+                });
+                slider(content, "Movement / independent color layers (%)", 0, 100,
+                        editing.layerMotion, value -> {
+                    editing.layerMotion = value; updatePreview();
+                });
+                slider(content, "A/B/C separate-line gap (dp)", 0, 4,
+                        editing.lineSpacing, value -> {
+                    editing.lineSpacing = value; updatePreview();
+                });
+                info(content, "Choose Motion V2 to get three color reaches at "
+                        + "EXACTLY the same line position: cyan, white and pink "
+                        + "can grow to different lengths, sometimes leaving just "
+                        + "one color visible. Music flow uses the existing beat "
+                        + "signal. Movement 0 gives fixed segments, 100 gives "
+                        + "the strongest color variation. Older stacked and "
+                        + "side-by-side modes are still available.");
+            } else if (editing.type == StudioPreset.WAVE) {
+                info(content, "WAVE SHAPE & EFFECTS");
+                slider(content, "Wave vertical baseline (%)", 10, 95,
+                        editing.waveBaseline, value -> {
+                    editing.waveBaseline = value; updatePreview();
+                });
+                slider(content, "Wave amplitude (%)", 10, 180,
+                        editing.waveAmplitude, value -> {
+                    editing.waveAmplitude = value; updatePreview();
+                });
+                slider(content, "Wave stroke (dp, 0 = original)", 0, 18,
+                        editing.waveStroke, value -> {
+                    editing.waveStroke = value; updatePreview();
+                });
+                slider(content, "Wave curve smoothing (%)", 0, 100,
+                        editing.waveSmoothness, value -> {
+                    editing.waveSmoothness = value; updatePreview();
+                });
+                slider(content, "Wave glow (%)", 0, 100,
+                        editing.waveGlow, value -> {
+                    editing.waveGlow = value; updatePreview();
+                });
+                slider(content, "Wave opacity (%)", 10, 100,
+                        editing.waveOpacity, value -> {
+                    editing.waveOpacity = value; updatePreview();
+                });
+                info(content, "These options modify Wave appearance only, not "
+                        + "music capture, FFT levels, bar position or the legacy "
+                        + "PulseWave equalizer.");
+            }
             slider(content, "Music flow strength", 0, 100, editing.flowStrength, value -> {
                 editing.flowStrength = value; updatePreview();
             });
-            info(content, "Music Color Flow rotates your chosen colors across the lines "
-                    + "on captured beats; it pauses during silence. "
-                    + "The demo uses synthesized music, not captured audio.");
         } else if (editing.type == StudioPreset.PHOTO) {
             Button choose = button("Choose a photo", true);
             choose.setOnClickListener(v -> choosePhoto());

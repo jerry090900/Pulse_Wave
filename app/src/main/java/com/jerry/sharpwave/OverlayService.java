@@ -5,6 +5,7 @@ import android.app.KeyguardManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
@@ -54,7 +55,7 @@ public class OverlayService extends Service {
     private static volatile OverlayService activeInstance;
     private static volatile boolean appUiVisible;
 
-    /** Activity lifecycle signal; keeps the audio capture running, hides only overlay artwork. */
+    /** Activity lifecycle signal; overlay visibility now obeys the user's preference. */
     static void setAppUiVisible(boolean visible) {
         appUiVisible = visible;
         OverlayService instance = activeInstance;
@@ -66,8 +67,8 @@ public class OverlayService extends Service {
     }
 
     static boolean shouldHideOverlayInApp(boolean uiVisible, boolean locked,
-            boolean explicitPreview) {
-        return uiVisible && !locked && !explicitPreview;
+            boolean explicitPreview, boolean showInsideApp) {
+        return uiVisible && !locked && !explicitPreview && !showInsideApp;
     }
 
     public static boolean isRunning() {
@@ -198,6 +199,10 @@ public class OverlayService extends Service {
         updateDisplayState();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         visualizerView = new SharpVisualizerView(this);
+        // One-time Preview-only migration to the old top-edge position.
+        // Never modifies the original app's settings or subsequent user choices.
+        Prefs.restoreTopEdgeForPreviewOnce(this);
+        StudioStore.restoreClassicBarsOnce(this);
         applyStyle();
         reconcileVisualizer(false);
         handler.post(usagePoller);
@@ -596,9 +601,10 @@ public class OverlayService extends Service {
             return;
         }
 
-        // Do not draw over PulseWave's own Gallery/Editor and settings.
-        // An explicitly requested five-second test preview remains visible.
-        if (shouldHideOverlayInApp(appUiVisible, keyguardLocked, previewActive)) {
+        // Respect the user's in-app visibility preference. Keep Android audio
+        // callbacks running: opening our app must not silently disable the visualizer.
+        if (shouldHideOverlayInApp(appUiVisible, keyguardLocked,
+                previewActive, Prefs.showInsideApp(this))) {
             closeLockScreenHost();
             hideOverlay();
             stopPreviewTicker();
@@ -697,21 +703,25 @@ public class OverlayService extends Service {
         handler.removeCallbacks(previewTicker);
     }
 
-    /**
-     * The old equalizer owns the Top/Middle/Bottom setting. Wave's working
-     * middle-screen position remains independent; it is never moved by bar controls.
-     */
+    /** Respect the user's screen position for Bars, Spikes AND Wave. */
     static int overlayPositionForScene(int requested, StudioPreset scene) {
-        return scene != null && scene.type == StudioPreset.WAVE
-                ? Prefs.POSITION_CENTER : requested;
+        return Math.max(Prefs.POSITION_TOP,
+                Math.min(Prefs.POSITION_BOTTOM, requested));
     }
 
     private void showOverlay() {
         if (overlayAdded) return;
         int heightPx = Math.round(Prefs.height(this) * getResources().getDisplayMetrics().density);
+        int position = overlayPositionForScene(
+                Prefs.overlayPosition(this), StudioStore.activeAudio(this));
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
+        if (position == Prefs.POSITION_TOP) {
+            // Restore the original PulseWave flag lost during the position redesign.
+            // Draw behind the status-bar area without requesting privileged overlays.
+            flags |= WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+        }
         if (Prefs.lockScreenEnabled(this)) {
             flags |= WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED;
         }
@@ -722,8 +732,15 @@ public class OverlayService extends Service {
                 flags,
                 PixelFormat.TRANSLUCENT
         );
-        int position = overlayPositionForScene(
-                Prefs.overlayPosition(this), StudioStore.activeAudio(this));
+        if (position == Prefs.POSITION_TOP) {
+            params.layoutInDisplayCutoutMode =
+                    android.os.Build.VERSION.SDK_INT >= 30
+                            ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                            : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                params.setFitInsetsTypes(0);
+            }
+        }
         params.gravity = (position == Prefs.POSITION_TOP ? Gravity.TOP
                 : position == Prefs.POSITION_BOTTOM ? Gravity.BOTTOM
                 : Gravity.CENTER_VERTICAL) | Gravity.START;
@@ -905,11 +922,26 @@ public class OverlayService extends Service {
         nm.createNotificationChannel(channel);
     }
 
+    /** Explicit service action: tap Off to stop the current overlay and notification. */
+    private PendingIntent notificationStopAction() {
+        Intent stop = new Intent(this, OverlayService.class).setAction(ACTION_STOP);
+        return PendingIntent.getService(this, NOTIFICATION_ID + 1, stop,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
     private Notification buildNotification(String text) {
+        PendingIntent openApp = PendingIntent.getActivity(this, NOTIFICATION_ID,
+                new Intent(this, MainActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentTitle("PulseWave")
                 .setContentText(text)
+                .setContentIntent(openApp)
+                .addAction(new Notification.Action.Builder(
+                        android.R.drawable.ic_media_pause, "Off",
+                        notificationStopAction()).build())
                 .setOngoing(true)
                 .build();
     }
