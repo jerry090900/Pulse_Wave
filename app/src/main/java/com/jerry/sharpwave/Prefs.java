@@ -33,10 +33,6 @@ final class Prefs {
     static final String KEY_AS_PLAYED = "capture_as_played";
     // Optional, user-enabled media-session detection: no notification contents collected.
     static final String KEY_MEDIA_SESSION_DETECTION = "media_session_detection";
-    // Optional extras: OFF by default, so previous music-sync remains identical.
-    static final String KEY_BEAT_SYNC_SUPPORT = "beat_sync_support";
-    static final String KEY_ADAPTIVE_RESPONSE = "adaptive_visual_response";
-    static final String KEY_RESPONSE_PROFILE = "visual_response_profile";
     // On by default: overlay continues while the user opens PulseWave to inspect it.
     static final String KEY_SHOW_INSIDE_APP = "show_visualizer_inside_app";
 
@@ -92,19 +88,6 @@ final class Prefs {
         return get(c).getBoolean(KEY_MEDIA_SESSION_DETECTION, false);
     }
 
-    static boolean beatSyncSupport(Context c) {
-        return get(c).getBoolean(KEY_BEAT_SYNC_SUPPORT, false);
-    }
-
-    static boolean adaptiveResponse(Context c) {
-        return get(c).getBoolean(KEY_ADAPTIVE_RESPONSE, false);
-    }
-
-    static int responseProfile(Context c) {
-        return Math.max(BeatSyncSupport.SMOOTH, Math.min(BeatSyncSupport.PUNCHY,
-                get(c).getInt(KEY_RESPONSE_PROFILE, BeatSyncSupport.BALANCED)));
-    }
-
     static boolean showInsideApp(Context c) {
         return get(c).getBoolean(KEY_SHOW_INSIDE_APP, true);
     }
@@ -126,9 +109,9 @@ final class Prefs {
                 .remove(KEY_BASS_GAIN)
                 .remove(KEY_AS_PLAYED)
                 .remove(KEY_LOCK_SCREEN)
-                .remove(KEY_BEAT_SYNC_SUPPORT)
-                .remove(KEY_ADAPTIVE_RESPONSE)
-                .remove(KEY_RESPONSE_PROFILE)
+                .remove("beat_sync_support")
+                .remove("adaptive_visual_response")
+                .remove("visual_response_profile")
                 .remove(KEY_SHOW_INSIDE_APP)
                 .apply();
     }

@@ -88,21 +88,42 @@ final class StudioStore {
         Prefs.get(context).edit().remove(KEY_ACTIVE_AUDIO).apply();
     }
 
-    /**
-     * One-time Preview-only restore: if the active style was Wave, show the
-     * classic Bars again. The Wave design remains saved and editable in Studio.
-     * Never resets a user-selected Bars/Spikes scene or original PulseWave.
-     */
+    /** Home controls edit the selected audio style, never its selection or other fields. */
+    static void updateAudioSetting(Context context, String key, int value) {
+        StudioPreset active = activeAudio(context);
+        if (active != null) {
+            if (Prefs.KEY_SPIKE_WIDTH.equals(key)) active.width = value;
+            else if (Prefs.KEY_GAP.equals(key)) active.gap = value;
+            else if (Prefs.KEY_HEIGHT.equals(key)) active.height = value;
+            else if (Prefs.KEY_SENSITIVITY.equals(key)) active.sensitivity = value;
+            else {
+                // Global response controls do not belong to the saved style.
+                Prefs.get(context).edit().putInt(key, value).apply();
+                return;
+            }
+            save(context, active);
+        }
+        Prefs.get(context).edit().putInt(key, value).apply();
+    }
+
+    static void updateAppliedPalette(Context context, int palette) {
+        StudioPreset active = activeAudio(context);
+        if (active != null && palette == Prefs.PALETTE_DHH_SIGNATURE) {
+            active.primary = 0xFFFFFFFF;
+            active.accent = 0xFF9F000E;
+            active.third = 0xFFB8B8B8;
+            save(context, active);
+        }
+        Prefs.get(context).edit().putInt(Prefs.KEY_PALETTE, palette).apply();
+    }
+
+    /** Retire the old Wave-deselection migration without resetting any saved design. */
     static void restoreClassicBarsOnce(Context context) {
         if (!"com.jerry.sharpwave.preview".equals(context.getPackageName())) return;
         SharedPreferences prefs = Prefs.get(context);
-        if (prefs.getBoolean(KEY_CLASSIC_MIGRATION, false)) return;
-        StudioPreset applied = activeAudio(context);
-        SharedPreferences.Editor edit = prefs.edit();
-        if (applied != null && applied.type == StudioPreset.WAVE) {
-            edit.remove(KEY_ACTIVE_AUDIO);
+        if (!prefs.getBoolean(KEY_CLASSIC_MIGRATION, false)) {
+            prefs.edit().putBoolean(KEY_CLASSIC_MIGRATION, true).apply();
         }
-        edit.putBoolean(KEY_CLASSIC_MIGRATION, true).apply();
     }
 
     static boolean isApplied(Context context, StudioPreset p) {
