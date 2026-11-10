@@ -274,8 +274,7 @@ public class MainActivity extends Activity {
         }
         palette.setOnCheckedChangeListener((group, checkedId) -> {
             int value = Math.max(0, checkedId - 1000);
-            Prefs.get(this).edit().putInt(Prefs.KEY_PALETTE, value).apply();
-            StudioStore.clearAppliedAudio(this);
+            StudioStore.updateAppliedPalette(this, value);
             refreshService();
         });
         controls.addView(palette, matchParams(4, 0));
@@ -324,41 +323,6 @@ public class MainActivity extends Activity {
         motionPanel.addView(text("Signal comes from Android's output-mix Visualizer, not the music app's private audio session. Some devices cannot provide an accurate mix.",
                 12, color(R.color.text_secondary)), matchParams(8, 0));
         addBlock(root, motionPanel, 0, 24);
-
-        section(root, "OPTIONAL BEAT SUPPORT",
-                "Extra visual response only. The original music synchronization stays on "
-                        + "unless you explicitly enable this.");
-        LinearLayout beatPanel = panel();
-        addMotionToggle(beatPanel, "Beat Sync Pro (off by default)",
-                "Additional kick/drum emphasis from the existing audio levels. "
-                        + "Turn off any time to return to the exact original response.",
-                Prefs.KEY_BEAT_SYNC_SUPPORT, Prefs.beatSyncSupport(this));
-        addDivider(beatPanel);
-        addMotionToggle(beatPanel, "Adaptive visual sensitivity",
-                "When Beat Sync Pro is on, adapt visual gain for quiet and loud music. "
-                        + "Does not change audio volume.",
-                Prefs.KEY_ADAPTIVE_RESPONSE, Prefs.adaptiveResponse(this));
-        beatPanel.addView(text("Visual response preset • works only with Beat Sync Pro",
-                14, color(R.color.text)), matchParams(12, 5));
-        RadioGroup beatProfiles = new RadioGroup(this);
-        String[] beatProfileLabels = {"Smooth • gentle", "Balanced", "Punchy • stronger kicks"};
-        for (int index = 0; index < beatProfileLabels.length; index++) {
-            RadioButton option = new RadioButton(this);
-            option.setId(9200 + index);
-            option.setText(beatProfileLabels[index]);
-            option.setTextColor(color(R.color.text_secondary));
-            option.setButtonTintList(radioTint());
-            beatProfiles.addView(option);
-            if (index == Prefs.responseProfile(this)) option.setChecked(true);
-        }
-        beatProfiles.setOnCheckedChangeListener((group, id) -> {
-            Prefs.get(this).edit().putInt(Prefs.KEY_RESPONSE_PROFILE,
-                    Math.max(BeatSyncSupport.SMOOTH,
-                            Math.min(BeatSyncSupport.PUNCHY, id - 9200))).apply();
-            refreshService();
-        });
-        beatPanel.addView(beatProfiles, matchParams(0, 4));
-        addBlock(root, beatPanel, 0, 24);
 
         section(root, "EXPERIMENTAL LOCK SCREEN", "Screen-on keyguard support varies by Android device.");
         LinearLayout lockPanel = panel();
@@ -427,7 +391,7 @@ public class MainActivity extends Activity {
         resetVisual.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("Reset PulseWave visualizer settings?")
                 .setMessage("Restore the classic red/white bars, top position, "
-                        + "visualizer size, sensitivity, colors and beat controls. "
+                        + "visualizer size, sensitivity and colors. "
                         + "Your saved Studio designs, selected music apps and "
                         + "Android permissions will be kept.")
                 .setNegativeButton("Cancel", (dialog, which) -> {})
@@ -507,10 +471,7 @@ public class MainActivity extends Activity {
                 int value = min + progress;
                 valueLabel.setText(String.valueOf(value));
                 if (fromUser) {
-                    Prefs.get(MainActivity.this).edit().putInt(key, value).apply();
-                    if (!Prefs.KEY_BASS_GAIN.equals(key)) {
-                        StudioStore.clearAppliedAudio(MainActivity.this);
-                    }
+                    StudioStore.updateAudioSetting(MainActivity.this, key, value);
                 }
             }
 
