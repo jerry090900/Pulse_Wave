@@ -310,6 +310,11 @@ public class MainActivity extends Activity {
                 "Low frequencies peak in the center; higher notes spread to both edges.",
                 Prefs.KEY_CENTER_BASS, Prefs.centeredBass(this));
         addDivider(motionPanel);
+        addMotionToggle(motionPanel, "Center the vocals",
+                "Adds vocal-range movement (300–3,400 Hz) to the center. Instruments "
+                        + "in this range react too; this does not isolate a singer.",
+                Prefs.KEY_CENTER_VOCALS, Prefs.centeredVocals(this));
+        addDivider(motionPanel);
         addMotionToggle(motionPanel, "Solid-color bars (legacy mode)",
                 "For the old visualizer only. Studio designs use their own two-color setting.",
                 Prefs.KEY_SINGLE_COLOR, Prefs.singleColorBars(this));

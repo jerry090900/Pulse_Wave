@@ -245,11 +245,11 @@ public class OverlayService extends Service {
                             == Prefs.POSITION_TOP
                     && (scene == null || scene.type == StudioPreset.BARS));
             visualizerView.setPresentation(Prefs.centeredBass(this),
-                    Prefs.singleColorBars(this), Prefs.bassGain(this));
+                    Prefs.centeredVocals(this), Prefs.singleColorBars(this), Prefs.bassGain(this));
         }
         LockScreenActivity.applyStyle(spikeWidth, gap, sensitivity, palette);
         LockScreenActivity.applyPresentation(Prefs.centeredBass(this),
-                Prefs.singleColorBars(this), Prefs.bassGain(this));
+                Prefs.centeredVocals(this), Prefs.singleColorBars(this), Prefs.bassGain(this));
     }
 
     private void updateDisplayState() {

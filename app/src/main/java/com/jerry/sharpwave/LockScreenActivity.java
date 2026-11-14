@@ -77,13 +77,13 @@ public class LockScreenActivity extends Activity {
         }
     }
 
-    static void applyPresentation(boolean centerBass, boolean singleColor,
-            int bassGainPercent) {
+    static void applyPresentation(boolean centerBass, boolean centerVocals,
+            boolean singleColor, int bassGainPercent) {
         synchronized (INSTANCE_LOCK) {
             LockScreenActivity activity = instance;
             if (isUsableInstance(activity) && activity.visualizerView != null) {
-                activity.visualizerView.setPresentation(centerBass, singleColor,
-                        bassGainPercent);
+                activity.visualizerView.setPresentation(centerBass, centerVocals,
+                        singleColor, bassGainPercent);
             }
         }
     }
@@ -122,7 +122,7 @@ public class LockScreenActivity extends Activity {
                 Prefs.palette(this));
         visualizerView.setStudioScene(StudioStore.activeAudio(this));
         visualizerView.setPresentation(Prefs.centeredBass(this),
-                Prefs.singleColorBars(this), Prefs.bassGain(this));
+                Prefs.centeredVocals(this), Prefs.singleColorBars(this), Prefs.bassGain(this));
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.TRANSPARENT);
