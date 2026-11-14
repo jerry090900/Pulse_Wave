@@ -28,6 +28,7 @@ final class Prefs {
     static final int POSITION_CENTER = 1;
     static final int POSITION_BOTTOM = 2;
     static final String KEY_CENTER_BASS = "center_bass";
+    static final String KEY_CENTER_VOCALS = "center_vocals";
     static final String KEY_SINGLE_COLOR = "single_color_bars";
     static final String KEY_BASS_GAIN = "bass_gain";
     static final String KEY_AS_PLAYED = "capture_as_played";
@@ -79,6 +80,7 @@ final class Prefs {
                 .putBoolean(KEY_PREVIEW_TOP_EDGE_MIGRATION, true).apply();
     }
     static boolean centeredBass(Context c) { return get(c).getBoolean(KEY_CENTER_BASS, true); }
+    static boolean centeredVocals(Context c) { return get(c).getBoolean(KEY_CENTER_VOCALS, false); }
     static boolean singleColorBars(Context c) { return get(c).getBoolean(KEY_SINGLE_COLOR, false); }
     static int bassGain(Context c) {
         return Math.max(100, Math.min(240, get(c).getInt(KEY_BASS_GAIN, 160)));
@@ -105,6 +107,7 @@ final class Prefs {
                 .remove(KEY_PALETTE)
                 .remove(KEY_OVERLAY_POSITION)
                 .remove(KEY_CENTER_BASS)
+                .remove(KEY_CENTER_VOCALS)
                 .remove(KEY_SINGLE_COLOR)
                 .remove(KEY_BASS_GAIN)
                 .remove(KEY_AS_PLAYED)
