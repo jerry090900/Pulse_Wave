@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      signed_artifact_url: ${{ steps.upload_signed_apk.outputs.artifact-url }}
+      signed_artifact_id: ${{ steps.upload_signed_apk.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -130,19 +130,22 @@ jobs:
       && github.ref == 'refs/heads/preview/updateable'
     runs-on: ubuntu-latest
     # This independent job has no keystore access. PRs cannot write statuses.
+    # Pass only the numeric artifact ID between jobs: GitHub masks URLs containing
+    # account names as secrets and silently drops such cross-job outputs.
     permissions:
       statuses: write
     steps:
       - name: Record verified signed artifact URL on the commit
         env:
           GH_TOKEN: ${{ github.token }}
-          SIGNED_ARTIFACT_URL: ${{ needs.build.outputs.signed_artifact_url }}
+          SIGNED_ARTIFACT_ID: ${{ needs.build.outputs.signed_artifact_id }}
         run: |
           set -euo pipefail
-          if [[ ! "$SIGNED_ARTIFACT_URL" =~ ^https://github.com/[^/]+/[^/]+/actions/runs/[0-9]+/artifacts/[0-9]+$ ]]; then
-            echo "::error::Missing or unexpected verified artifact URL"
+          if [[ ! "$SIGNED_ARTIFACT_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Missing verified numeric artifact ID"
             exit 1
           fi
+          export SIGNED_ARTIFACT_URL="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts/$SIGNED_ARTIFACT_ID"
           python3 - <<'PY' > "$RUNNER_TEMP/verified-artifact-status.json"
           import json
           import os
