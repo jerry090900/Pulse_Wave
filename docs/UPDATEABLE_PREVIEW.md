@@ -64,6 +64,9 @@ ephemeral CI debug certificate as the new key.
   signing certificate before publishing**, and **Upload updateable Preview APK**
   all show **success**. If no artifact appears, inspect the same run's first failed
   or skipped step; do not treat a green CI-only debug APK as updateable.
+- Once verified upload succeeds, the independent publishing job records a
+  `PulseWave/updateable-preview-apk` commit status with the exact artifact URL.
+  This status is missing by design on PR-only CI runs.
 
 **Important:** Do not run untrusted PR code or change the signing workflow
 without reviewing it. Repository secrets are protected but are made available
