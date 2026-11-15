@@ -50,12 +50,20 @@ ephemeral CI debug certificate as the new key.
 - Workflow computes `versionCode = 10000 + GITHUB_RUN_NUMBER`. Each normal
   new run increases this value; reruns of the same run retain the same code.
 - The Android package remains exactly `com.jerry.sharpwave.preview`;
-  versionName starts at `0.1.6-preview` and can be changed independently.
+  versionName is independent of the versionCode and may change on new releases.
 - User-visible artifact name: `PulseWave-Preview-UPDATEABLE-apk`.
 - Before installing, verify the package, versionCode and certificate
   digest in the Actions logs (workflow checks them automatically).
 - After setup, rerun the **Build Android APK** workflow on
   `preview/updateable`, or push a reviewed code change to that branch.
+- On the Actions run summary, confirm **Event = push or workflow_dispatch** and
+  **Branch = preview/updateable**. A green pull-request run is only a CI check:
+  it deliberately skips permanent signing and has no installable APK artifact.
+- The artifact exists only if **Restore permanent Preview keystore**, **Build
+  persistently signed updateable Preview APK**, **Verify pinned permanent
+  signing certificate before publishing**, and **Upload updateable Preview APK**
+  all show **success**. If no artifact appears, inspect the same run's first failed
+  or skipped step; do not treat a green CI-only debug APK as updateable.
 
 **Important:** Do not run untrusted PR code or change the signing workflow
 without reviewing it. Repository secrets are protected but are made available
