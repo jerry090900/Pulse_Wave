@@ -20,6 +20,9 @@ public class SharpVisualizerView extends View {
     private static final float FFT_CEIL_DB = -6f;
     private static final float FFT_SCALE = 128f;
     private static final float BASS_CROSSOVER_HZ = 700f;
+    private static final float VOCAL_LOW_HZ = 300f;
+    private static final float VOCAL_HIGH_HZ = 3400f;
+    private static final float VOCAL_CENTER_MIX = 0.65f;
     private static final float TWO_TONE_MIN_RED_FRACTION = 0.35f;
     private static final float TWO_TONE_MAX_RED_FRACTION = 0.70f;
     private static final float TWO_TONE_MIN_SEGMENT_PX = 1f;
@@ -61,8 +64,10 @@ public class SharpVisualizerView extends View {
     private int studioColorMode = StudioPreset.COLOR_TWO;
     private int studioFlowStrength = 80;
     private boolean barsDownward;
+    private StudioPreset activeStudioStyle;
     private final MusicColorFlow musicColorFlow = new MusicColorFlow();
     private boolean centerBass = true;
+    private boolean centerVocals;
     private boolean solidBars = true;
     private int bassGain = 160;
     private volatile float waveformEnergy = 1f;
@@ -92,6 +97,7 @@ public class SharpVisualizerView extends View {
 
     /** Applies only original PulseWave-owned audio presets; null keeps legacy behavior. */
     public void setStudioScene(StudioPreset scene) {
+        activeStudioStyle = scene != null && scene.isAudio() ? scene.copy() : null;
         if (scene == null || !scene.isAudio()) {
             studioMode = StudioPreset.BARS;
             studioColorsActive = false;
@@ -119,8 +125,10 @@ public class SharpVisualizerView extends View {
     }
 
     /** Presentation controls are independent of capture and app selection. */
-    public void setPresentation(boolean bassInCenter, boolean oneColor, int bassGainPercent) {
+    public void setPresentation(boolean bassInCenter, boolean vocalsInCenter,
+            boolean oneColor, int bassGainPercent) {
         centerBass = bassInCenter;
+        centerVocals = vocalsInCenter;
         solidBars = oneColor;
         bassGain = StudioPreset.clamp(bassGainPercent, 100, 240);
         invalidate();
@@ -273,6 +281,9 @@ public class SharpVisualizerView extends View {
         float actualLoudness = recentWaveform
                 ? Math.min(1f, waveformEnergy * 3.2f)
                 : 1f;
+        // Only fresh FFT data has frequency information. Waveform-only mode stays unchanged.
+        float vocalLevel = centerVocals && fftReady
+                ? vocalRangeLevel(spectrum, sampleRate) : 0f;
         for (int i = 0; i < count; i++) {
             int band = centerBass ? mirroredBandIndex(i, count) : i;
             float frequency = fftReady ? bandCenterFrequency(band, bins, sampleRate)
@@ -283,7 +294,9 @@ public class SharpVisualizerView extends View {
                     : 1f;
             float signal = fftReady ? fftTargetForBar(band, spectrum, bins)
                     : waveformTargetForBar(band, count, wave);
-            rawTargets[i] = Math.min(1f, signal * bassMultiplier
+            float vocalContribution = centerVocals && fftReady
+                    ? VOCAL_CENTER_MIX * vocalLevel * vocalCenterWeight(i, count) : 0f;
+            rawTargets[i] = Math.min(1f, (signal * bassMultiplier + vocalContribution)
                     * (fftReady ? actualLoudness : 1f));
         }
 
@@ -304,7 +317,9 @@ public class SharpVisualizerView extends View {
         int colorMode = studioColorsActive ? studioColorMode
                 : StudioAudioRenderer.useTwoColors(false, studioTwoTone, solidBars)
                         ? StudioPreset.COLOR_TWO : StudioPreset.COLOR_SOLID;
-        float colorPhase = colorMode == StudioPreset.COLOR_MUSIC_FLOW
+        float colorPhase = (colorMode == StudioPreset.COLOR_MUSIC_FLOW
+                || colorMode == StudioPreset.COLOR_STACKED
+                || colorMode == StudioPreset.COLOR_TRIPLE_MOTION)
                 ? musicColorFlow.update(smoothed, now, studioFlowStrength) : 0f;
         int primary = studioColorsActive
                 ? studioPrimary : PALETTES[Prefs.PALETTE_DHH_SIGNATURE][0];
@@ -314,7 +329,8 @@ public class SharpVisualizerView extends View {
                 Math.max(1f, dp(spikeWidthDp)), Math.max(0f, dp(gapDp)),
                 getResources().getDisplayMetrics().density, smoothed,
                 studioColorsActive ? studioMode : StudioPreset.BARS,
-                primary, accent, studioThird, colorMode, colorPhase, barsDownward);
+                primary, accent, studioThird, colorMode, colorPhase,
+                barsDownward, activeStudioStyle);
     }
 
     private void ensureRenderArrays(int count) {
@@ -354,6 +370,43 @@ public class SharpVisualizerView extends View {
         mappedCount = count;
         mappedBins = bins;
         mappedSampleRate = sampleRate;
+    }
+
+    /**
+     * Symmetric, center-weighted visual accent. It does not extract a vocal stem;
+     * any instrument within the midrange can also drive this response.
+     */
+    static float vocalCenterWeight(int bar, int count) {
+        if (count <= 1) return 1f;
+        float midpoint = (count - 1) * 0.5f;
+        float radius = Math.max(0.5f, (count - 1) * 0.30f);
+        float t = Math.max(0f, 1f - Math.abs(bar - midpoint) / radius);
+        return t * t * (3f - 2f * t);
+    }
+
+    /** RMS of midrange FFT bins, excluding bass and upper treble. Input sample rate is in Hz. */
+    static float vocalRangeRms(float[] spectrum, int sampleRate) {
+        if (spectrum == null || spectrum.length < 2 || sampleRate <= 0) return 0f;
+        float hzPerBin = sampleRate / (2f * spectrum.length);
+        if (hzPerBin <= 0f) return 0f;
+        int from = Math.max(1, (int) Math.ceil(VOCAL_LOW_HZ / hzPerBin));
+        int until = Math.min(spectrum.length, (int) Math.ceil(VOCAL_HIGH_HZ / hzPerBin));
+        if (until <= from) return 0f;
+        float sumSq = 0f;
+        for (int bin = from; bin < until; bin++) {
+            float magnitude = spectrum[bin];
+            sumSq += magnitude * magnitude;
+        }
+        return (float) Math.sqrt(sumSq / (until - from));
+    }
+
+    private float vocalRangeLevel(float[] spectrum, int sampleRate) {
+        float rms = vocalRangeRms(spectrum, sampleRate);
+        float db = 20f * (float) Math.log10(Math.max(rms, 0.0001f) / FFT_SCALE);
+        float normalized = Math.max(0f, Math.min(1f,
+                (db - FFT_FLOOR_DB) / (FFT_CEIL_DB - FFT_FLOOR_DB)));
+        float scaled = (float) Math.pow(normalized, 1.65f) * (sensitivity / 160f);
+        return Math.max(0f, Math.min(1f, scaled));
     }
 
     private float fftTargetForBar(int bar, float[] spectrum, int bins) {

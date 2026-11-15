@@ -1,138 +1,55 @@
-# PulseWave
+# PulseWave 🎵
 
-PulseWave is a small open-source Android audio visualizer overlay built around the requested design:
+**Open-source Android music visualizer with a customizable top-edge equalizer and PulseWave Studio.**
 
-- **sharp triangular spikes** (no rounded ends)
-- **full-width top overlay**
-- **tiny adjustable gaps**
-- reacts to music using Android's `Visualizer` output-mix API
-- **Selected Apps**: the effect appears while a chosen app was recently in the foreground and audio is active
-- default palette: **white `#FFFFFF` + grey `#9E9E9E` + deep red `#9F000E`**
-- adjustable spike width, gap, maximum height and sensitivity
-- no ads and no network permission
+[**Download the latest public pre-release (v0.2.0)**](https://github.com/jerry090900/Pulse_Wave/releases/tag/v0.2.0-preview) · [Report a bug](https://github.com/jerry090900/Pulse_Wave/issues) · [MIT license](LICENSE)
 
-## PulseWave Studio — initial editor milestone
+> **Preview software, not a stable 1.0 release.** The visual appearance and OEM compatibility still need real-device validation. The Muviz-inspired color effects are experiments, not a pixel-perfect clone or an officially affiliated product.
 
-Open **PulseWave Studio** on the home screen to browse original style presets, tap **Edit**, see a generated motion preview, and **Save** or **Apply**. Styles are stored locally in private app preferences.
+## Features
 
-- **Audio styles**: joined white/red bars, thin bars, spikes and waves. Saving and applying an audio style updates the existing output-mix visualizer overlay when it is enabled. Existing selected-app detection and service permissions are unchanged.
-- **Photo clock**: choose an image through Android's **Open Document** picker; the app retains only a user-granted read URI and renders the photo with an adjustable opacity and clock in its in-app preview. Photos are not uploaded or copied to a hidden server.
-- **Fingerprint halo**: adjustable size, position, colors and animation in an in-app preview. It is **not** a real biometric sensor animation and cannot detect or replace the system fingerprint unlock screen.
-- **Preset editing**: color selections, width/gap/height/sensitivity, local Save, Duplicate and Apply. Legacy visualizer controls remain available and override a selected Studio audio preset when manually changed.
+- **Classic equalizer** — original red/white bars, full-width top placement and downward music-responsive movement.
+- **PulseWave Studio** — multiple audio designs; edit widths, gaps, height, sensitivity, colors, Wave thickness, baseline, curvature, glow and opacity. Save, duplicate and apply local presets.
+- **Custom color controls** — separately selectable A/B/C colors, side-by-side 3 lines and an optional **Muviz-style Color Layers** mode with moving cyan/white/pink sections within each bar.
+- **Optional beat-response support** — Beat Sync Pro, adaptive visual sensitivity, and Smooth/Balanced/Punchy response; OFF by default, so the established music capture stays unchanged.
+- **Service controls** — turn the visualizer off from its notification, optionally keep the overlay visible while PulseWave is open, or reset only the visualizer settings without deleting saved designs or selected apps.
+- **Selected music apps** — control which chosen foreground media apps trigger the overlay. Optional user-authorized media-session detection is available.
+- **Experimental screen-on lock-screen support**; availability varies by Android and device. This app cannot replace the system AOD or secure lock screen.
 
-**Limitations of this milestone:** The Studio uses *generated demo motion*, not live captured audio, inside the editor. Applying photo and fingerprint presets selects only their Studio preview; it does **not** replace OEM AOD or system biometric behavior. No background AOD service, Accessibility access, notification listener, or extra privileged permissions were added. Different devices may limit overlay and audio capture. Android 10–17 compatibility has not been validated on hardware.
+## Screenshots
 
-Planned next milestones: draggable canvas elements, richer photo masks/layouts, preset import/export, opt-in media notification sessions, charging effects, sensor-driven rules, plus real-device power and lock-screen QA.
+![PulseWave Preview v0.2.0 running in a clean Android emulator](docs/screenshots/pulsewave-v0.2.0-emulator-home.png)
 
-## Screen-centered visualizer / audio-response test fix
+*Genuine v0.2.0 main-screen screenshot on a clean Android 15 emulator. No real music was playing in the emulator; the Live Visualizer card demonstrates the interface, not verified live music response. Appearance on Nothing Phone and other devices may vary.*
 
-This candidate adds a **Position: Middle** default (with Top and Bottom choices), symmetric **bass-in-the-center** mapping, a consistent bottom baseline for the equalizer, **Solid-color bars**, and a tunable **Bass response** slider. The legacy two-tone style remains available by turning solid colors off.
+[View the full screenshot](https://github.com/jerry090900/Pulse_Wave/releases/download/v0.2.0-preview/pulsewave-v0.2.0-emulator-home.png)
 
-The **Follow playback loudness** toggle defaults to Android's `SCALING_MODE_AS_PLAYED` to preserve changes in volume. If Bluetooth or a player produces weak/empty output-mix data, switch it off to restore normalized capture. **Check live audio signal** reports whether Android has delivered any recent FFT peaks; it does not identify the source app or prove musical timing is correct.
+## Installation and updates
 
-The experimental screen-on lock-screen host retains a previously selected music source briefly when switching through the home screen before locking, as long as media remains active. It still cannot replace Android's secure lock screen, display-off AOD, or system fingerprint unlock animations; stock Android may suppress the host entirely due to background-activity launch and keyguard policy.
+1. Open [GitHub Releases](https://github.com/jerry090900/Pulse_Wave/releases), choose the newest approved Preview version, and download the **APK** under Assets (not the source archive).
+2. Install it on Android 10 or newer. Allow overlay and audio visualization permissions when prompted; Usage Access supports the selected-app feature. Notification listener access is optional.
+3. Future signed Preview APKs can install **over the previous signed Preview** without uninstalling. The package is `com.jerry.sharpwave.preview`; new versions must have the same signing certificate and a higher version code.
+4. The original `com.jerry.sharpwave` is a different application identity. Preview APKs **cannot** update it; do not uninstall the original app to test Preview.
 
-The candidate is a **draft test build**. Verify audio/visual sync, position, selected app continuity, screen-on lock test, and update signing on the target Nothing Phone before merging. Existing installation signing may not match GitHub Actions debug signing.
+PulseWave does not request internet permission. Audio is used locally for visual effects and is not recorded or uploaded. Notification listener access, when enabled, has broad system permission but the implementation processes only selected playing-session package IDs/state, not message content.
 
-## One built-in theme and optional music-session notification access
+## Build and develop
 
-PulseWave now ships **one** legacy built-in theme: **DHH Signature** (white, deep red, gray). The nine other legacy named themes are removed from the built-in palette menu and renderer. Stored legacy palette indices safely fall back to DHH Signature. User-created PulseWave Studio preset designs are kept.
+The stable user-facing release track is [`preview/updateable`](https://github.com/jerry090900/Pulse_Wave/tree/preview/updateable). The repository's `main` branch is a retained older baseline, not the source for v0.2.0.
 
-On the home page, **Access → Music notification access (optional)** opens Android's notification access settings. PulseWave also provides a separate **Use playing media sessions from selected apps** switch, initially **off**. Both explicit opt-in and OS-level permission are required.
-
-When enabled, PulseWave uses `MediaSessionManager.getActiveSessions()` through its authorized `NotificationListenerService` solely to identify the *package name* of **selected** apps with a media session in PLAYING state. This allows music-source tracking when switching apps or locking the screen; it **does not provide waveform/FFT data**, so the Android output-mix Visualizer remains responsible for animating the bars.
-
-The Android notification-access permission is broad and technically allows access to all notifications. This implementation does **not** process or store notification titles, text, messages, contacts, album artwork, or session metadata. No remote upload is implemented. Users can disable the switch or revoke notification access in Android settings. The app continues to support its previous non-notification fallback. Android or OEM policy may restrict the feature on sideloaded apps.
-
-**Important:** Successful unit tests/CI compilation are not the same as proving real music synchronization, notification-access behavior, Bluetooth audio capture, or lock-screen visibility on the Nothing Phone. Keep this branch separate from main until device QA.
-
-## Studio Preview = Apply alignment (November 6 QA)
-
-The audio visualizer now uses **one shared renderer** for Studio and the real overlay. Bars, spikes and the FFT-responsive **Wave** share the same geometry, thickness, baseline and per-preset colors. Studio feeds this renderer **synthetic demo levels**, while the real overlay continues using its existing Android Visualizer FFT input, smoothing and callback timing. The user-approved new-video wave synchronization and middle-of-screen positioning are deliberately **unchanged**.
-
-**Two-color** (primary + accent) is the default for new and existing audio Studio designs missing the saved option, regardless of the separate legacy solid-color switch. Each Studio design can optionally use one solid color. Previously saved Studio scenes and photo choices are preserved. The original DHH Signature also defaults to dual white/red for users who have not explicitly selected solid bars.
-
-**Limitations:** demo beats are not the user's actual live audio; shapes, thickness and colors match but instantaneous peak heights depend on the music. This PR also adds a **Check last lock-screen attempt** control; it reports observed launch status or exception class instead of claiming system keyguard compatibility. It does not enable full Doze/AOD drawing or unlock-screen fingerprint integration.
-
-The update remains a draft test candidate. Real-device listening and screen-on lock tests are still required, as is verifying signing certificate continuity before installing over an existing APK.
-
-## Three colors and Music Color Flow (Studio)
-
-From **PulseWave Studio → Edit** any audio design:
-
-- Choose **One color**, **Two colors (classic)**, **Three colors**, or **Music Color Flow • 3 colors**.
-- The three swatches are **Color 1 (left), Color 2 (middle), Color 3 (right)**. Tap each color to edit Hue/Saturation/Brightness or enter `#RRGGBB` exactly. A picker change updates Studio's preview immediately; Cancel restores the previous color.
-- In static three-color mode, the chosen colors blend across individual spectrum lines (first → middle → third). In **Music Color Flow**, those same three colors shift smoothly across lines according to audio energy and rising beats. The **Music flow strength** slider adjusts movement; **0** freezes it.
-- This uses the existing FFT-driven visualizer and **does not modify audio capture, smoothing, screen position or the middle-positioned synchronized Wave**. No new microphone, network, notification or album-art permission is needed.
-- A new **Prismatic Music Flow** starter preset is added non-destructively, even for an existing saved preset library with space available. Old presets retain original solid/two-color choices; all custom presets and photo URIs are kept.
-- Studio uses **simulated music data** with the **same renderer**. The real overlay uses the actual capture. Colors and shapes match; beat timing in preview is not a recording of the music you're listening to.
-
-**Unverified on device:** Smoothness at the target phone's display refresh rate, perceived response with Bluetooth, and AOD/secure lock-screen behavior. GitHub tests verify logical contracts and APK build only; use a matching Android signing certificate for update-over-install. The system AOD and hardware fingerprint unlock animations are not changed.
-
-## Permissions
-
-PulseWave asks for three user-facing permissions:
-
-1. **Display over other apps** — draws the transparent visualizer overlay.
-2. **Record audio** — required by Android's `Visualizer` API even though PulseWave uses the low-quality output mix for visualization and does not save audio.
-3. **Usage access** — used to detect when a selected app was recently in the foreground. PulseWave no longer requests notification access, which avoids the Play Protect notification-listener warning.
-
-PulseWave cannot identify exactly which app is producing sound without notification access. It keeps the overlay active while a selected app is foreground (or was the recent selected source within a short grace period) and audio/visualizer activity is present.
-
-It also runs a low-priority foreground service while enabled so Android does not kill it between songs.
-
-## Android support
-
-- minSdk: 29 (Android 10)
-- target/compileSdk: 36 (Android 16)
-- Java 17
-- Android Gradle Plugin 9.4.1
-- Gradle 9.6.0
-
-## Build
-
-The included GitHub Actions workflow builds a debug APK automatically after a push.
-
-Local build, with Android SDK 36 and Gradle 9.6 installed:
+Requirements: Java 17, Android SDK/Build Tools 36, Gradle 9.6.0. Run:
 
 ```bash
+gradle :app:testDebugUnitTest
 gradle :app:assembleDebug
 ```
 
-APK output:
+Local default debug APKs are **not** guaranteed to update the published app: release signing requires a permanent private owner-controlled key. Never commit `.jks`, `.p12`, passwords, or secret files. See [Updateable Preview signing guide](docs/UPDATEABLE_PREVIEW.md).
 
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
+Release procedure: test changes in a PR, merge approved work into `preview/updateable`, produce and verify a permanently signed APK, and update the pinned release manifest for a **new** version tag. The dedicated publishing workflow verifies the APK hash, package, version code, and signing identity before creating a pre-release; it does not rewrite past releases.
 
-### Termux-specific AAPT2
+## Limitations
 
-The shared `gradle.properties` intentionally does **not** reference a Termux filesystem path, because GitHub Actions uses an Ubuntu runner and must use its own AAPT2.
+Android's output-mix `Visualizer` API can give different results across audio apps and Bluetooth devices. Top-edge overlays, notification actions, lock-screen drawing and visual timing need testing on actual phones. Studio's preview uses simulated audio rather than a live song. The color-layer effect is still evolving based on real user feedback.
 
-If building directly inside Termux requires its local ARM64 `aapt2`, first verify that `$PREFIX/bin/aapt2` exists. Then supply that override **only for the local build**:
-
-```bash
-gradle -Pandroid.aapt2FromMavenOverride="$PREFIX/bin/aapt2" :app:assembleDebug
-```
-
-This Termux command is not used by the GitHub Actions workflow. Its success depends on the actual local Android SDK and AAPT2 installation.
-
-## Experimental lock-screen mode (screen on only)
-
-PulseWave has an explicit **Experimental lock screen** setting. When it is enabled and a selected media app is active, the service:
-
-- starts a transparent, non-focusable `showWhenLocked` activity host above the screen-on keyguard using the public activity API;
-- adds `FLAG_SHOW_WHEN_LOCKED` to the overlay window as a best-effort fallback for OEMs that honour it;
-- falls back to the normal overlay and reports the limitation in the foreground notification if the OEM or display state prevents the host from appearing.
-
-It does **not** request `WAKE_LOCK`, does not call `setTurnScreenOn(true)`, and does not keep the display awake. True always-on-display rendering while the panel is off is not possible with public third-party APIs, so PulseWave neither claims nor fakes it. Results still need runtime validation on the target Nothing Phone because OEM keyguard and background-activity-launch policies vary.
-
-## Important Android limitation
-
-A normal third-party overlay cannot replace Android's actual status icons. PulseWave draws at the top edge using `TYPE_APPLICATION_OVERLAY`. Whether it visually sits behind/around the status-bar area can vary slightly by ROM and display-cutout policy.
-
-Also, some devices or ROMs may restrict global audio-session `Visualizer(0)`. If that happens, a future fallback can use Android's Audio Playback Capture / MediaProjection flow, which requires an explicit system capture confirmation.
-
-## License
-
-MIT
+Licensed under [MIT](LICENSE). Contributions and useful bug reports are welcome.

@@ -19,6 +19,19 @@ final class StudioPreset {
     // -1 preserves original one/two-color presets on upgrades.
     int colorMode = -1;
     int flowStrength = 80;
+    // Three side-by-side audio lines: fixed A / B / C identities.
+    int lineSpacing = 1;
+    // Color-stack mode: A/B/C share one bar; split points shift per FFT band.
+    int layerASplit = 33;
+    int layerBSplit = 68;
+    int layerMotion = 85;
+    // Optional Wave-only appearance controls. Defaults reproduce the old Wave.
+    int waveBaseline = 82;     // vertical baseline, percent of overlay height
+    int waveAmplitude = 100;   // percent of the original 72%-height response
+    int waveStroke = 0;        // 0 = original automatic stroke width
+    int waveSmoothness = 0;    // 0 = original sharp path, 100 = curved
+    int waveGlow = 0;          // 0 = none
+    int waveOpacity = 100;
     int width = 5;
     int gap = 1;
     int height = 92;
@@ -47,6 +60,16 @@ final class StudioPreset {
         p.third = third;
         p.colorMode = colorMode;
         p.flowStrength = flowStrength;
+        p.lineSpacing = lineSpacing;
+        p.layerASplit = layerASplit;
+        p.layerBSplit = layerBSplit;
+        p.layerMotion = layerMotion;
+        p.waveBaseline = waveBaseline;
+        p.waveAmplitude = waveAmplitude;
+        p.waveStroke = waveStroke;
+        p.waveSmoothness = waveSmoothness;
+        p.waveGlow = waveGlow;
+        p.waveOpacity = waveOpacity;
         p.width = width;
         p.gap = gap;
         p.height = height;
@@ -70,14 +93,16 @@ final class StudioPreset {
     static final int COLOR_TWO = 1;
     static final int COLOR_THREE = 2;
     static final int COLOR_MUSIC_FLOW = 3;
+    static final int COLOR_STACKED = 4; // Legacy static three-color sections.
+    static final int COLOR_TRIPLE_MOTION = 5; // Independent same-slot color reaches.
 
     int effectiveColorMode() {
         return colorMode < 0 ? (twoTone ? COLOR_TWO : COLOR_SOLID)
-                : clamp(colorMode, COLOR_SOLID, COLOR_MUSIC_FLOW);
+                : clamp(colorMode, COLOR_SOLID, COLOR_TRIPLE_MOTION);
     }
 
     void setColorMode(int mode) {
-        colorMode = clamp(mode, COLOR_SOLID, COLOR_MUSIC_FLOW);
+        colorMode = clamp(mode, COLOR_SOLID, COLOR_TRIPLE_MOTION);
         twoTone = colorMode != COLOR_SOLID; // Compatibility with previous presets.
     }
 
@@ -110,6 +135,16 @@ final class StudioPreset {
         offsetY = clamp(offsetY, 15, 90);
         opacity = clamp(opacity, 15, 100);
         flowStrength = clamp(flowStrength, 0, 100);
+        lineSpacing = clamp(lineSpacing, 0, 4);
+        layerASplit = clamp(layerASplit, 5, 70);
+        layerBSplit = clamp(layerBSplit, layerASplit + 5, 95);
+        layerMotion = clamp(layerMotion, 0, 100);
+        waveBaseline = clamp(waveBaseline, 10, 95);
+        waveAmplitude = clamp(waveAmplitude, 10, 180);
+        waveStroke = clamp(waveStroke, 0, 18);
+        waveSmoothness = clamp(waveSmoothness, 0, 100);
+        waveGlow = clamp(waveGlow, 0, 100);
+        waveOpacity = clamp(waveOpacity, 10, 100);
         if (colorMode >= 0) setColorMode(colorMode);
         if (photoUri == null || photoUri.length() > 2048 || !photoUri.startsWith("content://")) {
             photoUri = "";

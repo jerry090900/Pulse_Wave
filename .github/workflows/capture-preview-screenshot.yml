@@ -1,0 +1,86 @@
+name: Capture public PulseWave Preview screenshot
+
+on:
+  push:
+    branches: [ "preview/updateable" ]
+    paths: [ ".github/workflows/capture-preview-screenshot.yml" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  screenshot:
+    if: github.repository == 'jerry090900/Pulse_Wave' && github.ref == 'refs/heads/preview/updateable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download signed 0.2.0 APK from verified build
+        uses: actions/download-artifact@v4
+        with:
+          name: PulseWave-Preview-UPDATEABLE-apk
+          run-id: 42611824671
+          github-token: ${{ github.token }}
+          path: dist
+
+      - name: Verify screenshot source APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "c60b9cec81dd19b08ab3e55ff16d392bc271ad0b3c43c06454d482dafe21662b  dist/app-debug.apk" | sha256sum -c -
+
+      - name: Enable hardware virtualization
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Capture actual 0.2.0 main screen in emulator (no user data)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb install -r dist/app-debug.apk
+            adb shell pm grant com.jerry.sharpwave.preview android.permission.RECORD_AUDIO || true
+            adb shell pm grant com.jerry.sharpwave.preview android.permission.POST_NOTIFICATIONS || true
+            adb shell appops set com.jerry.sharpwave.preview PACKAGE_USAGE_STATS allow || true
+            adb shell appops set com.jerry.sharpwave.preview SYSTEM_ALERT_WINDOW allow || true
+            adb shell am start -n com.jerry.sharpwave.preview/com.jerry.sharpwave.MainActivity
+            sleep 6
+            mkdir -p docs/screenshots
+            adb exec-out screencap -p > docs/screenshots/pulsewave-v0.2.0-emulator-home.png
+            test -s docs/screenshots/pulsewave-v0.2.0-emulator-home.png
+            file docs/screenshots/pulsewave-v0.2.0-emulator-home.png
+
+      - name: Preserve screenshot as CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PulseWave-0.2.0-emulator-screenshot
+          path: docs/screenshots/pulsewave-v0.2.0-emulator-home.png
+          if-no-files-found: error
+
+      - name: Attach screenshot to already published pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload v0.2.0-preview \
+            docs/screenshots/pulsewave-v0.2.0-emulator-home.png \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Add real emulator screenshot to Preview repository docs
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots/pulsewave-v0.2.0-emulator-home.png
+          git commit -m "Docs: capture genuine v0.2.0 home screenshot on clean Android emulator"
+          git push origin HEAD:preview/updateable

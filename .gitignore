@@ -23,3 +23,9 @@ captures/
 # IDE metadata
 .idea/
 *.iml
+
+# Signing material must NEVER be committed. Keep private backups outside the repo.
+*.jks
+*.keystore
+*.p12
+*.pfx
